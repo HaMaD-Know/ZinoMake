@@ -250,6 +250,48 @@ await step('runaway loop is stopped with a friendly message', async () => {
   await page.getByText(/loop ran for too long/).waitFor({ timeout: 12000 });
 });
 
+await step('assets: add a picture and show it with a block', async () => {
+  await page.goto(base + '#/new?type=game&template=blank-game');
+  await page.getByTestId('start-creating').click();
+  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.getByRole('button', { name: 'Pictures and sounds' }).click();
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.locator('input[aria-label="Add pictures or sounds"]').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: png });
+  await page.getByText('cat.png').first().waitFor({ timeout: 5000 });
+  await page.locator('input[aria-label="Add pictures or sounds"]').setInputFiles({ name: 'notes.exe', mimeType: 'application/x-msdownload', buffer: Buffer.from('MZ') });
+  await page.getByText(/can’t be used/).waitFor({ timeout: 3000 });
+  await page.getByTestId('view-code').click();
+  await page.locator('.cm-content').waitFor();
+  await setCode('onStart(async () => {\n  setImage("player", "cat.png");\n  setImage("player", "missing.png");\n});\n');
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(1200);
+  const bgImg = await frame().locator('#player').evaluate((el) => el.style.backgroundImage);
+  assert(bgImg.includes('data:image/png'), 'picture not shown: ' + bgImg);
+  await page.getByText(/“missing.png” could not be loaded/).waitFor({ timeout: 3000 });
+});
+
+await step('two tabs: a stale tab never overwrites newer work', async () => {
+  const url = page.url();
+  const other = await context.newPage();
+  await other.goto(url);
+  await other.waitForSelector('.blocklySvg', { timeout: 15000 });
+  // Edit and save in the first tab.
+  await page.getByTestId('stop').click().catch(() => {});
+  await setCode('onStart(async () => {\n  say("first tab");\n});\n');
+  await waitSaved();
+  // Now edit the stale second tab.
+  await other.getByTestId('view-code').click();
+  await other.locator('.cm-content').click();
+  await other.keyboard.press('End');
+  await other.keyboard.insertText('\n// second tab');
+  await other.getByText('This project was changed somewhere else').waitFor({ timeout: 8000 });
+  await other.getByRole('button', { name: 'Load the other version' }).click();
+  await other.waitForTimeout(300);
+  const code = await other.evaluate(() => document.querySelector('.cm-content')?.innerText ?? '');
+  assert(code.includes('first tab'), 'did not load newer version');
+  await other.close();
+});
+
 await step('phone layout: single panel, bottom view switcher, no horizontal scroll', async () => {
   await page.setViewportSize({ width: 375, height: 740 });
   await page.goto(base);

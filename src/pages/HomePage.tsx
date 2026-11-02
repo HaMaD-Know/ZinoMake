@@ -8,9 +8,10 @@ import { navigate } from '../app/App';
 import { applyTheme, readPref, toast, writePref, type ThemePref } from '../app/ui-store';
 import { TEMPLATES } from '../templates/templates';
 import { deleteFolder, deleteProject, listFolders, listProjects, putFolder, updateProjectMeta } from '../storage/db';
-import { duplicateProject, exportProject, importProjectFile } from '../app/projectService';
 import { newId, type DashboardFolder, type Project } from '../model/project';
-import { ImportError } from '../storage/projectZip';
+
+// Heavier code (parser, ZIP) loads only when needed.
+const service = () => import('../app/projectService');
 
 const FEATURED = ['game-click-target', 'app-counter', 'web-profile-card', 'anim-bouncing-ball'];
 
@@ -64,7 +65,7 @@ export function HomePage() {
     void refresh();
   };
   const duplicate = async (p: Project) => {
-    const copy = await duplicateProject(p.id);
+    const copy = await (await service()).duplicateProject(p.id);
     if (copy) toast(`Made a copy: “${copy.name}”`);
     void refresh();
   };
@@ -99,13 +100,13 @@ export function HomePage() {
   const onImport = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const p = await importProjectFile(file);
+      const p = await (await service()).importProjectFile(file);
       if (p) {
         toast(`Imported “${p.name}”.`);
         void refresh();
       }
     } catch (e) {
-      toast(e instanceof ImportError ? e.message : 'This file doesn’t look like a valid ZinoMake project.', 'error');
+      toast(e instanceof Error && e.name === 'ImportError' ? e.message : 'This file doesn’t look like a valid ZinoMake project.', 'error');
       console.error('[ZinoMake] import failed', e);
     }
   };
@@ -131,7 +132,7 @@ export function HomePage() {
           { label: 'Rename…', onSelect: () => void rename(p) },
           { label: 'Duplicate', onSelect: () => void duplicate(p) },
           { label: 'Move to folder…', onSelect: () => setMoving(p) },
-          { label: 'Export (.zip)', onSelect: () => void exportProject(p) },
+          { label: 'Export (.zip)', onSelect: () => void service().then((m) => m.exportProject(p)) },
           { label: 'Delete…', onSelect: () => void remove(p), danger: true, separatorBefore: true },
         ]}>
           <Icon name="more" />

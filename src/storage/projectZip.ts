@@ -16,7 +16,9 @@ export const ARCHIVE_FORMAT = 'zinomake-project';
 export const ARCHIVE_VERSION = 1;
 export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
-export class ImportError extends Error {}
+export class ImportError extends Error {
+  name = 'ImportError';
+}
 
 export interface AssetData {
   id: string;

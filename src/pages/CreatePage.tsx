@@ -5,7 +5,6 @@ import { Thumb, TYPE_EMOJI, TYPE_LABEL } from '../components/Thumb';
 import { navigate } from '../app/App';
 import { toast } from '../app/ui-store';
 import { blankTemplate, findTemplate, templatesFor } from '../templates/templates';
-import { createFromTemplate } from '../app/projectService';
 import { PROJECT_TYPES, type ProjectType } from '../model/project';
 
 const TYPE_DESC: Record<ProjectType, string> = {
@@ -28,6 +27,7 @@ export function CreatePage({ initialType, initialTemplate }: { initialType?: str
     if (!templateId) return;
     setBusy(true);
     try {
+      const { createFromTemplate } = await import('../app/projectService');
       const p = await createFromTemplate(templateId, name);
       navigate(`#/p/${p.id}`);
     } catch (e) {
