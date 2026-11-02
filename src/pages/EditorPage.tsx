@@ -178,6 +178,13 @@ export default function EditorPage({ projectId }: { projectId: string }) {
     }
   })();
 
+  const runExport = (fn: (p: Project) => Promise<void>) => {
+    fn(project).catch((e) => {
+      console.error('[ZinoMake] export failed', e);
+      toast('The file couldn’t be saved. Try again.', 'error');
+    });
+  };
+
   const undo = () => (currentMain === 'code' ? code.current?.undo() : blocks.current?.undo());
   const redo = () => (currentMain === 'code' ? code.current?.redo() : blocks.current?.redo());
 
@@ -203,9 +210,9 @@ export default function EditorPage({ projectId }: { projectId: string }) {
           { label: '✨ Describe it (helper)…', onSelect: () => setDialog('helper') },
           { label: 'Pictures & sounds', onSelect: () => setSide('assets') },
           { label: 'Help & ideas', onSelect: () => setDialog('help') },
-          { label: 'Download project (.zip)', onSelect: () => void exportProject(project), separatorBefore: true },
-          { label: 'Download web page (.html)', onSelect: () => void exportWebPage(project) },
-          { label: 'Download source files (.zip)', onSelect: () => void exportSource(project) },
+          { label: 'Download project (.zip)', onSelect: () => runExport(exportProject), separatorBefore: true },
+          { label: 'Download web page (.html)', onSelect: () => runExport(exportWebPage) },
+          { label: 'Download source files (.zip)', onSelect: () => runExport(exportSource) },
           ...(template ? [{ label: 'Start over from the starter…', onSelect: () => void resetToTemplate(), danger: true, separatorBefore: true }] : []),
         ]}><Icon name="more" /></MenuButton>
         {running ? (

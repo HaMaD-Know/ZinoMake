@@ -11,9 +11,14 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node tests/e2e/run-e2e.mjs"
+    "test:e2e": "node tests/e2e/run-e2e.mjs",
+    "ios:sync": "npm run build && npx cap sync ios"
   },
   "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/share": "^8.0.3",
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-css": "^6.3.1",
@@ -32,6 +37,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.6.0",
     "@types/react": "19.1",
     "@types/react-dom": "19.1",
     "@vitejs/plugin-react": "^4.7.0",

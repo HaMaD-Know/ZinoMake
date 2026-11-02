@@ -51,6 +51,7 @@
 html, body, #root { height: 100%; }
 body {
   margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.45;
@@ -195,7 +196,7 @@ label.field > span { display: block; margin-bottom: 6px; }
 .toast.error { background: var(--danger); color: #fff; }
 
 /* ---------- Editor ---------- */
-.editor { position: fixed; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; background: var(--bg); }
+.editor { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; background: var(--bg); }
 .ebar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border-bottom: 1.5px solid var(--border); min-width: 0; }
 .ebar .proj-name { all: unset; font-weight: 800; font-size: 17px; padding: 6px 8px; border-radius: 8px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
 .ebar .proj-name:hover, .ebar .proj-name:focus { background: var(--surface-2); }

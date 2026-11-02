@@ -78,6 +78,29 @@ npm run test:e2e    # browser tests (needs `npm run dev` running and Playwright 
 For the browser tests, start `npm run dev` in one terminal and run `npm run test:e2e` in
 another. Set `BASE_URL` if ZinoMake runs on another address.
 
+## iPhone / iPad app (unsigned .ipa)
+
+The same website is also packaged as an iOS app with [Capacitor](https://capacitorjs.com)
+(`ios/` folder, bundle id `com.zinomake.app`, iOS 16.4 or newer, iPhone and iPad).
+
+**Building it (no Mac needed):** every push to GitHub runs the *iOS build* workflow
+(`.github/workflows/ios-build.yml`) on GitHub's macOS computers. When it finishes, open the run
+on the repository's **Actions** tab and download the artifact
+**“ZinoMake-unsigned-ipa (re-sign before installing)”**. You can also start it by hand:
+Actions → *iOS build* → *Run workflow*.
+
+**Installing it:** an *unsigned* .ipa can't be installed directly. Unzip the downloaded
+artifact to get `ZinoMake-unsigned.ipa`, then sign and install it with your own Apple ID using a
+sideloading tool such as **Sideloadly** or **AltStore** (Windows or Mac). With a free Apple ID
+the app must be re-signed every 7 days.
+
+**In the app:** projects are stored on the device inside the app. “Download …” buttons open the
+iOS share sheet, so you can save files to the Files app or AirDrop them; “Open a file” imports a
+`.zinomake.zip` from Files.
+
+**Building on a Mac yourself:** `npm install`, `npm run ios:sync`, then open
+`ios/App/App.xcodeproj` in Xcode, choose your team under *Signing & Capabilities* and press Run.
+
 ## How to make something
 
 1. Press **Create Something** → choose what to make → pick a starter → **Start Creating**.
@@ -120,7 +143,8 @@ Other files (`index.html`, `style.css`, extra `.js` files) are edited as text on
 - Two-way conversion covers only the [documented subset](docs/SUPPORTED_CODE.md) of JavaScript.
   After you edit blocks, `main.js` is re-formatted in ZinoMake's style.
 - Custom blocks (“My blocks”) have no inputs yet; variables are numbers or text (no lists).
-- Projects are previewed as web pages. ZinoMake does not build native Android/iOS apps.
+- Projects you make are previewed as web pages; ZinoMake does not turn *your projects* into native apps.
+- The ZinoMake iOS app is built unsigned; you must sign it yourself to install it. No Android app yet.
 - Sound needs a click or tap inside the preview first (browser rule).
 - Keyboard controls need the preview to have focus (click the game first).
 - The preview sandbox (iframe without same-origin + no-network CSP + loop guard) is a strong

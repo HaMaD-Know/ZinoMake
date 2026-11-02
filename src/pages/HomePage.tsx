@@ -132,7 +132,7 @@ export function HomePage() {
           { label: 'Rename…', onSelect: () => void rename(p) },
           { label: 'Duplicate', onSelect: () => void duplicate(p) },
           { label: 'Move to folder…', onSelect: () => setMoving(p) },
-          { label: 'Export (.zip)', onSelect: () => void service().then((m) => m.exportProject(p)) },
+          { label: 'Export (.zip)', onSelect: () => void service().then((m) => m.exportProject(p)).catch((e) => { console.error('[ZinoMake] export failed', e); toast('The file couldn’t be saved. Try again.', 'error'); }) },
           { label: 'Delete…', onSelect: () => void remove(p), danger: true, separatorBefore: true },
         ]}>
           <Icon name="more" />

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 /** App-level project operations combining storage, templates and archives. */
 import { createProjectFromTemplate } from '../model/createProject';
 import { newId, type Project } from '../model/project';
@@ -63,7 +64,35 @@ export async function duplicateProject(id: string): Promise<Project | null> {
   return copy;
 }
 
-export function downloadBytes(bytes: Uint8Array | string, filename: string, mime: string): void {
+/** True inside the iPhone/iPad app (Capacitor), false in a normal browser. */
+export function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform();
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/**
+ * Save a file for the user. In a browser this is a normal download. In the iOS app (where
+ * WKWebView ignores download links) the file is written to the app cache and the iOS share
+ * sheet opens, so it can be saved to Files, AirDropped, etc.
+ */
+export async function downloadBytes(bytes: Uint8Array | string, filename: string, mime: string): Promise<void> {
+  if (isNativeApp()) {
+    const data = typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes;
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+    const written = await Filesystem.writeFile({ path: filename, data: toBase64(data), directory: Directory.Cache });
+    try {
+      await Share.share({ title: filename, url: written.uri, dialogTitle: 'Save or share' });
+    } catch (e) {
+      // Closing the share sheet without choosing anything is not an error.
+      if (!/cancel/i.test(String((e as Error)?.message ?? e))) throw e;
+    }
+    return;
+  }
   const blob = new Blob([bytes as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -80,15 +109,15 @@ export function fileSafe(name: string): string {
 }
 
 export async function exportProject(p: Project): Promise<void> {
-  downloadBytes(exportProjectZip(p, await loadAssetData(p)), `${fileSafe(p.name)}.zinomake.zip`, 'application/zip');
+  await downloadBytes(exportProjectZip(p, await loadAssetData(p)), `${fileSafe(p.name)}.zinomake.zip`, 'application/zip');
 }
 
 export async function exportSource(p: Project): Promise<void> {
-  downloadBytes(exportSourceZip(p, await loadAssetData(p)), `${fileSafe(p.name)}-source.zip`, 'application/zip');
+  await downloadBytes(exportSourceZip(p, await loadAssetData(p)), `${fileSafe(p.name)}-source.zip`, 'application/zip');
 }
 
 export async function exportWebPage(p: Project): Promise<void> {
-  downloadBytes(exportStandaloneHtml(p, await loadAssetData(p)), `${fileSafe(p.name)}.html`, 'text/html');
+  await downloadBytes(exportStandaloneHtml(p, await loadAssetData(p)), `${fileSafe(p.name)}.html`, 'text/html');
 }
 
 /** Import an exported archive. Asks before replacing a project that already exists. Returns the new project or null if cancelled. */

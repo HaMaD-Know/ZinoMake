@@ -1,0 +1,119 @@
+name: iOS build
+
+# Builds ZinoMake's iPhone/iPad app on GitHub's macOS runners.
+#
+#  * web  – typecheck, unit tests and production web build (Linux, fast feedback)
+#  * ios  – Capacitor sync + Xcode build of an UNSIGNED device .ipa.
+#           An unsigned .ipa can't be installed as-is: re-sign it with your own Apple ID
+#           (for example with Sideloadly or AltStore) before installing on an iPhone or iPad.
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  web:
+    name: Web – typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx vite build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: dist
+          retention-days: 7
+
+  ios:
+    name: iOS – unsigned IPA
+    needs: web
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DERIVED: ${{ github.workspace }}/ios/DerivedData
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install JS dependencies (lockfile)
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Capacitor sync
+        run: npx cap sync ios
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj -scheme App \
+            -clonedSourcePackagesDirPath "$DERIVED/SourcePackages"
+
+      - name: Build unsigned device IPA
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED" \
+            -clonedSourcePackagesDirPath "$DERIVED/SourcePackages" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 \
+            | tee device-build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)|\*\* " || true
+          if ! grep -q "\*\* BUILD SUCCEEDED \*\*" device-build.log; then
+            echo "::error title=Device build failed::See errors above and the xcodebuild-logs artifact."
+            grep -E "error:" device-build.log | head -50
+            exit 1
+          fi
+          APP="$DERIVED/Build/Products/Release-iphoneos/App.app"
+          test -f "$APP/public/index.html" || { echo "::error::Web app missing from the bundle"; exit 1; }
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry ZinoMake-unsigned.ipa Payload
+          ls -lh ZinoMake-unsigned.ipa
+          unzip -l ZinoMake-unsigned.ipa | grep -E "App.app/(App|Info.plist|public/index.html)$"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: ZinoMake-unsigned-ipa (re-sign before installing)
+          path: ZinoMake-unsigned.ipa
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodebuild-logs
+          path: '*.log'
+          if-no-files-found: ignore
+          retention-days: 7

@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "tests/unit", "vite.config.ts"]
+  "include": ["src", "tests/unit", "vite.config.ts", "capacitor.config.ts"]
 }
