@@ -227,3 +227,23 @@ describe('runtime: lists and saving', () => {
     expect(api.loadValue('nothing')).toBe('');
   });
 });
+
+describe('runtime: show picture on an empty Picture', () => {
+  const runtime = readFileSync(resolve(__dirname, '../../src/runtime/zinoRuntime.js'), 'utf8');
+  it('turns the placeholder into a real picture (no hint text, same name and style)', () => {
+    const d = emptyDesign();
+    d.screens[0].nodes.push(makeNode(d, 'image', { width: '200' }, 'photo'));
+    document.body.innerHTML = renderDesign(d);
+    (window as unknown as { __ZM_ASSETS: unknown }).__ZM_ASSETS = { 'galaxy.png': 'data:image/png;base64,AA==' };
+    new Function(runtime).call(window);
+    const api = (window as unknown as { __zm: { api: Record<string, (...a: unknown[]) => unknown> } }).__zm.api;
+    expect(document.getElementById('photo')!.classList.contains('zm-placeholder')).toBe(true);
+    api.setImage('photo', 'galaxy.png');
+    const el = document.getElementById('photo') as HTMLImageElement;
+    expect(el.tagName).toBe('IMG');
+    expect(el.src).toContain('data:image/png');
+    expect(el.classList.contains('zm-placeholder')).toBe(false);
+    expect(el.textContent).toBe('');
+    expect(el.style.width).toBe('200px');
+  });
+});

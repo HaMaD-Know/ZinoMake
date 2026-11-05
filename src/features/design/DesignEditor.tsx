@@ -53,6 +53,8 @@ html,body{min-height:100%}
 #${DESIGN_ROOT_ID} .zm-row:empty::after,#${DESIGN_ROOT_ID} .zm-column:empty::after,#${DESIGN_ROOT_ID} .zm-card:empty::after,#${DESIGN_ROOT_ID} .zm-inner:empty::after{content:'Empty — select it, then add things';color:#8a84c9;font:600 13px system-ui;margin:auto;padding:20px}
 #${DESIGN_ROOT_ID} .zm-screen:empty{min-height:60vh}
 #${DESIGN_ROOT_ID} .zm-screen:empty::after{content:'This screen is empty. Add things from the left.';display:block;text-align:center;color:#8a8f9c;font:600 16px system-ui;padding:80px 20px}
+#${DESIGN_ROOT_ID} .zm-placeholder{display:grid;place-items:center;border:2px dashed #aab1bf;color:#6b7387;font-weight:700;padding:12px;background:#f4f5f8}
+#${DESIGN_ROOT_ID} .zm-ph-text{display:inline}
 #zm-drop{position:absolute;display:none;background:#5b4bdb;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.9);pointer-events:none;z-index:2147483645}
 #zm-handle{position:absolute;width:16px;height:16px;border-radius:5px;background:#5b4bdb;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:nwse-resize;z-index:2147483646;touch-action:none;display:none}
 `;

@@ -182,7 +182,7 @@ function node(n: DesignNode, ctx: Ctx, free: boolean): string {
       return `<a ${a()} href="${esc(/^(https?:|mailto:|tel:|#)/i.test(String(p.url ?? '')) ? p.url : '#')}" target="_blank" rel="noopener">${esc(p.text)}</a>`;
     case 'image': {
       const src = assetUrl(p.image);
-      if (!src) return `<div ${a('zm-placeholder')}>🖼 Choose a picture</div>`;
+      if (!src) return `<div ${a('zm-placeholder')}><span class="zm-ph-text">🖼 Choose a picture</span></div>`;
       return `<img ${a()} src="${esc(src)}" alt="${esc(p.alt ?? '')}" draggable="false">`;
     }
     case 'character':
@@ -265,7 +265,8 @@ body:has(#${DESIGN_ROOT_ID}){margin:0;background:var(--zm-bg);color:var(--zm-tex
 .zm-divider{border:none;border-top:1.5px solid #d9d6cf;width:100%;margin:4px 0}
 img.zm-image{display:block;max-width:100%;height:auto;user-select:none;-webkit-user-drag:none}
 img.zm-image.zm-free{max-width:none}
-.zm-placeholder{display:grid;place-items:center;min-height:90px;border:2px dashed #aab1bf;border-radius:12px;color:#6b7387;font-weight:700;padding:12px;background:#f4f5f8}
+.zm-placeholder{min-height:90px;border-radius:12px;background:#f1f2f5}
+.zm-ph-text{display:none}
 .zm-character{line-height:1;user-select:none;white-space:nowrap}
 .zm-shape{background-color:#ff6b6b}
 .zm-button{font:inherit;font-weight:800;font-size:16px;padding:12px 22px;border-radius:var(--zm-r);border:2px solid var(--zm-primary);background:var(--zm-primary);color:#fff;cursor:pointer;transition:transform .08s,filter .15s;max-width:100%}

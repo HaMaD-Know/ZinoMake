@@ -564,8 +564,21 @@
       var el = find(target); if (!el) return;
       var url = assets[String(assetName)];
       if (!url) { post('error', { message: 'The picture “' + assetName + '” could not be loaded. Add it in Assets, or choose another picture.', line: null }); return; }
-      if (el.tagName === 'IMG') el.src = url;
-      else { el.style.backgroundImage = 'url("' + url + '")'; el.style.backgroundSize = 'contain'; el.style.backgroundRepeat = 'no-repeat'; el.style.backgroundPosition = 'center'; el.style.backgroundColor = 'transparent'; }
+      if (el.tagName === 'IMG') { el.src = url; return; }
+      if (el.classList.contains('zm-placeholder')) {
+        // An empty Picture from the Design view: turn it into a real picture (no border, no hint text).
+        var img = document.createElement('img');
+        Array.prototype.forEach.call(el.attributes, function (a) { img.setAttribute(a.name, a.value); });
+        img.classList.remove('zm-placeholder');
+        img.alt = el.getAttribute('data-name') || '';
+        img.draggable = false;
+        img.src = url;
+        var h = homes.get(el);
+        if (h) homes.set(img, h);
+        el.parentNode.replaceChild(img, el);
+        return;
+      }
+      { el.style.backgroundImage = 'url("' + url + '")'; el.style.backgroundSize = 'contain'; el.style.backgroundRepeat = 'no-repeat'; el.style.backgroundPosition = 'center'; el.style.backgroundColor = 'transparent'; }
     },
     show: function (target) { checkRunning(); var el = find(target); if (el) { el.style.display = home(el).display; } },
     hide: function (target) {
