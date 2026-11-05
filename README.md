@@ -17,6 +17,12 @@ tablet or phone. No account, no installs for users, no paid services.
   boxes, circles, pictures, words, titles, buttons, typing boxes and phone arrow buttons, and
   *Looks* can resize, restyle and turn them. You never need to edit `index.html` or
   `style.css`; blank projects start as blocks only.
+- **Scratch-style game blocks** — speed, gravity, bounce off edges, point at an angle, copies
+  (like clones: “make a copy of wall”; touching checks every copy; copies leaving the stage tidy
+  themselves up), “is being pressed” for on-screen picture buttons, and messages
+  (“send message” / “when I get message”). Names and your pictures are picked from dropdowns,
+  and **＋ Add to stage** in *Pictures & sounds* adds a picture with one tap. Try the
+  *Fly Through the Gaps* starter.
 - **Add block without dragging** — the *Add block* dialog inserts a block next to the selected
   one (keyboard and touch friendly). *Delete block* removes the selected block.
 - **Real code** — Code view shows the JavaScript your blocks make. Simple edits in the code

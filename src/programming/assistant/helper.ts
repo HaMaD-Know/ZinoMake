@@ -143,5 +143,7 @@ export function elementIdsFromHtml(html: string): string[] {
 
 /** Names of things made by “Make things” blocks, e.g. addCharacter("player", …). */
 export function madeNamesFromCode(code: string): string[] {
-  return [...new Set([...code.matchAll(/\badd(?:Character|Box|Circle|Picture|Label|Title|Paragraph|Button|Input)\(\s*"([^"]+)"/g)].map((m) => m[1]))];
+  const names = [...code.matchAll(/\badd(?:Character|Box|Circle|Picture|Label|Title|Paragraph|Button|Input)\(\s*"([^"]+)"/g)].map((m) => m[1]);
+  if (/\bsetStage\(/.test(code)) names.push('stage');
+  return [...new Set(names)];
 }

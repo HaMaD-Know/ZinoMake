@@ -31,7 +31,7 @@ function uniqueName(name: string, taken: string[]): string {
   for (let i = 2; ; i++) if (!taken.includes(`${stem}-${i}${ext}`)) return `${stem}-${i}${ext}`;
 }
 
-export function AssetsPanel({ project, onChange }: { project: Project; onChange: (fn: (p: Project) => Project) => void }) {
+export function AssetsPanel({ project, onChange, onUse }: { project: Project; onChange: (fn: (p: Project) => Project) => void; onUse?: (asset: AssetRef) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
 
@@ -105,11 +105,16 @@ export function AssetsPanel({ project, onChange }: { project: Project; onChange:
         <input ref={input} type="file" multiple hidden accept={[...IMAGE_TYPES, ...AUDIO_TYPES].join(',')} onChange={(e) => { void add(e.target.files); e.target.value = ''; }} aria-label="Add pictures or sounds" />
       </div>
       <div className="asset-list">
-        {project.assets.length === 0 && <p className="hint" style={{ margin: '0 4px' }}>Add a picture, then use the “show picture” block, or write <code>assets/name.png</code> in index.html.</p>}
+        {project.assets.length === 0 && <p className="hint" style={{ margin: '0 4px' }}>Add your own pictures and sounds. Then press <strong>＋ Add to stage</strong> on a picture, or pick it in any picture or sound block.</p>}
         {project.assets.map((a) => (
           <div key={a.id} className="asset">
             {urls[a.id] ? <img src={urls[a.id]} alt="" /> : <span className="asset-icon" aria-hidden="true">{a.mime.startsWith('audio/') ? '🔊' : '🖼'}</span>}
             <span className="name">{a.name}<br /><span className="hint">{Math.ceil(a.size / 1024)} KB</span></span>
+            {onUse && (
+              <button className="btn btn-sm asset-use" onClick={() => onUse(a)} title={a.mime.startsWith('audio/') ? 'Add a “play audio file” block' : 'Add a block that puts this picture on the stage'} aria-label={a.mime.startsWith('audio/') ? `Play ${a.name} in blocks` : `Add ${a.name} to the stage`}>
+                {a.mime.startsWith('audio/') ? '＋ Play' : '＋ Add to stage'}
+              </button>
+            )}
             <button className="btn btn-ghost btn-sm btn-icon" onClick={() => void rename(a)} aria-label={`Rename ${a.name}`} title="Rename">✎</button>
             <button className="btn btn-ghost btn-sm btn-icon" onClick={() => void remove(a)} aria-label={`Remove ${a.name}`} title="Remove"><Icon name="trash" size={18} /></button>
           </div>

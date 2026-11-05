@@ -133,6 +133,8 @@ function binary(op: string, prec: number, left: Expr, right: Expr, rightAssoc: b
 function argCode(arg: ArgSpec, b: BlockState, ctx: GenContext): string {
   switch (arg.kind) {
     case 'text':
+    case 'thing':
+    case 'asset':
       return JSON.stringify(fieldString(b, arg.name, arg.default));
     case 'dropdown':
       return JSON.stringify(fieldString(b, arg.name, arg.options[0][1]));

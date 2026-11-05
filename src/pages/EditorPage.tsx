@@ -162,6 +162,27 @@ export default function EditorPage({ projectId }: { projectId: string }) {
     toast('Added! Press Play to try it.');
   };
 
+  /** “Add to stage” in Pictures & sounds: insert a ready-made block, like adding a sprite in Scratch. */
+  const useAsset = (a: { name: string; mime: string }) => {
+    if (ed.syntaxError) {
+      toast('Fix the mistake in the code first.', 'error');
+      return;
+    }
+    const num = (n: number) => ({ shadow: { type: 'math_number', fields: { NUM: n } } });
+    const stem = a.name.replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'picture';
+    let name = stem;
+    for (let i = 2; elementIds.includes(name); i++) name = `${stem}${i}`;
+    const item = a.mime.startsWith('audio/')
+      ? { kind: 'block', type: 'zm_play_asset', fields: { ASSET: a.name } }
+      : { kind: 'block', type: 'zm_add_picture', fields: { NAME: name, ASSET: a.name }, inputs: { X: num(40 + 30 * (elementIds.length % 8)), Y: num(40 + 20 * (elementIds.length % 6)), SIZE: num(60) } };
+    switchTo('blocks');
+    if (phone) setSide(null);
+    setTimeout(() => {
+      blocks.current?.insert(item);
+      toast(a.mime.startsWith('audio/') ? `Added a block that plays “${a.name}”.` : `Added “${name}” to your blocks. Press Play to see it.`);
+    }, 0);
+  };
+
   const syncPill = (() => {
     switch (project.syncState) {
       case 'in-sync': return <span className="pill ok" data-testid="sync-state">✓ Blocks and code match</span>;
@@ -249,7 +270,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
               if (phone) setSide(null);
             }} />
           )}
-          {side === 'assets' && <AssetsPanel project={project} onChange={ed.update} />}
+          {side === 'assets' && <AssetsPanel project={project} onChange={ed.update} onUse={useAsset} />}
         </aside>
 
         <section className="main-view" aria-label={codeVisible ? 'Code' : 'Blocks'}>
@@ -277,6 +298,8 @@ export default function EditorPage({ projectId }: { projectId: string }) {
                 onSelectionChange={setHasSelection}
                 onEmptyChange={setEmptyWorkspace}
                 visible={blocksVisible}
+                thingNames={elementIds}
+                assets={project.assets}
               />
               {emptyWorkspace && !ed.syntaxError && (
                 <div className="empty-hint">

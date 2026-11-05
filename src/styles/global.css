@@ -271,9 +271,10 @@ label.field > span { display: block; margin-bottom: 6px; }
 .tree-more { opacity: 0.7; }
 .linked-tag { font-size: 11px; font-weight: 800; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 99px; }
 .asset-list { display: grid; gap: 8px; padding: 6px 10px 12px; }
-.asset { display: flex; gap: 10px; align-items: center; padding: 6px; border: 1.5px solid var(--border); border-radius: 10px; }
+.asset { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px; border: 1.5px solid var(--border); border-radius: 10px; }
 .asset img, .asset .asset-icon { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: var(--surface-2); display: grid; place-items: center; flex: none; }
-.asset .name { font-weight: 700; font-size: 14px; word-break: break-all; flex: 1; }
+.asset .name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.asset .asset-use { order: 10; flex: 1 0 100%; justify-content: center; }
 
 .coach { position: fixed; right: 16px; bottom: 56px; z-index: 900; max-width: 340px; background: var(--surface); border: 2px solid var(--accent); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-2); }
 .coach h3 { font-size: 17px; }

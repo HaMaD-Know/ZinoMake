@@ -53,6 +53,10 @@ export type ValueCheck = 'Number' | 'String' | 'Boolean' | null;
 
 export type ArgSpec =
   | { kind: 'text'; name: string; default: string; label?: string }
+  /** The name of a thing on the page/stage: a dropdown of known names (or type a new one). Code: a "string". */
+  | { kind: 'thing'; name: string; default: string }
+  /** One of the project's uploaded files: a dropdown of pictures or sounds. Code: a "string". */
+  | { kind: 'asset'; name: string; default: string; media: 'image' | 'sound' }
   | { kind: 'dropdown'; name: string; options: [string, string][] }
   | { kind: 'number'; name: string; default: number }
   | { kind: 'value'; name: string; check: ValueCheck; default: number | string | boolean };
@@ -110,6 +114,7 @@ export const STYLE_OPTIONS: [string, string][] = [
 ];
 
 const NAME = (d: string): ArgSpec => ({ kind: 'text', name: 'NAME', default: d });
+const THING = (d: string, name = 'TARGET'): ArgSpec => ({ kind: 'thing', name, default: d });
 const num = (name: string, d: number): ArgSpec => ({ kind: 'value', name, check: 'Number', default: d });
 const str = (name: string, d: string): ArgSpec => ({ kind: 'value', name, check: null, default: d });
 
@@ -153,7 +158,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
   {
     type: 'zm_add_picture', category: 'objects', shape: 'statement', fn: 'addPicture',
     message: '➕ add picture %1 using %2 at x %3 y %4 size %5',
-    args: [NAME('picture'), { kind: 'text', name: 'ASSET', default: 'picture.png' }, num('X', 40), num('Y', 40), num('SIZE', 80)],
+    args: [NAME('picture'), { kind: 'asset', name: 'ASSET', default: 'picture.png', media: 'image' }, num('X', 40), num('Y', 40), num('SIZE', 80)],
     tooltip: 'Adds one of your pictures (from Pictures & sounds) to the stage.',
   },
   {
@@ -192,14 +197,25 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     tooltip: 'Adds on-screen ◀ ▲ ▼ ▶ buttons that work like the arrow keys, for phones and tablets.',
   },
   {
-    type: 'zm_remove', category: 'objects', shape: 'statement', fn: 'remove', group: 'Take away',
-    message: '🗑 remove %1', args: [{ kind: 'text', name: 'TARGET', default: 'box' }],
+    type: 'zm_make_copy', category: 'objects', shape: 'statement', fn: 'makeCopy', group: 'Copies',
+    message: '📑 make a copy of %1 at x %2 y %3',
+    args: [THING('wall'), num('X', 360), num('Y', 0)],
+    tooltip: 'Makes a copy of a thing (like a clone in Scratch). Copies get the same speed and gravity, and “touching wall” also checks every copy of wall. Copies that leave the stage are removed by themselves.',
+  },
+  {
+    type: 'zm_remove_copies', category: 'objects', shape: 'statement', fn: 'removeCopies',
+    message: '🧹 remove all copies of %1', args: [THING('wall')],
+    tooltip: 'Takes away every copy of a thing (the first one stays).',
+  },
+  {
+    type: 'zm_remove', category: 'objects', shape: 'statement', fn: 'removeThing', group: 'Take away',
+    message: '🗑 remove %1', args: [{ kind: 'thing', name: 'TARGET', default: 'box' }],
     tooltip: 'Takes a thing away for good. (Use “hide” if you want to show it again later.)',
   },
   // ---- Events ----
   {
     type: 'zm_on_click', category: 'events', shape: 'event', fn: 'onClick',
-    message: '👆 when %1 is clicked', args: [{ kind: 'text', name: 'TARGET', default: 'button' }],
+    message: '👆 when %1 is clicked', args: [{ kind: 'thing', name: 'TARGET', default: 'button' }],
     tooltip: 'Runs when the thing with this name (its id) is clicked or tapped.',
   },
   {
@@ -212,12 +228,27 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     message: '%1 key is held down', args: [{ kind: 'dropdown', name: 'KEY', options: KEY_OPTIONS }],
     tooltip: 'True while this key is held down. Great inside “forever”.',
   },
+  {
+    type: 'zm_is_pressed', category: 'events', shape: 'value', fn: 'isPressed', output: 'Boolean',
+    message: '%1 is being pressed', args: [THING('up')],
+    tooltip: 'True while a finger or the mouse is held down on this thing — perfect for on-screen arrow pictures.',
+  },
+  {
+    type: 'zm_on_message', category: 'events', shape: 'event', fn: 'onMessage',
+    message: '📣 when I get message %1', args: [{ kind: 'text', name: 'MESSAGE', default: 'game over' }],
+    tooltip: 'Runs when “send message” sends this message.',
+  },
+  {
+    type: 'zm_send', category: 'events', shape: 'statement', fn: 'sendMessage',
+    message: '📣 send message %1', args: [{ kind: 'text', name: 'MESSAGE', default: 'game over' }],
+    tooltip: 'Tells every “when I get message” block with the same message to run.',
+  },
   // ---- Motion ----
   {
     type: 'zm_move', category: 'motion', shape: 'statement', fn: 'move',
     message: 'move %1 by x %2 y %3',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'player' },
+      { kind: 'thing', name: 'TARGET', default: 'player' },
       { kind: 'value', name: 'DX', check: 'Number', default: 10 },
       { kind: 'value', name: 'DY', check: 'Number', default: 0 },
     ],
@@ -227,7 +258,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_move_to', category: 'motion', shape: 'statement', fn: 'moveTo',
     message: 'put %1 at x %2 y %3',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'player' },
+      { kind: 'thing', name: 'TARGET', default: 'player' },
       { kind: 'value', name: 'X', check: 'Number', default: 0 },
       { kind: 'value', name: 'Y', check: 'Number', default: 0 },
     ],
@@ -235,36 +266,66 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
   },
   {
     type: 'zm_get_x', category: 'motion', shape: 'value', fn: 'getX', output: 'Number',
-    message: 'x of %1', args: [{ kind: 'text', name: 'TARGET', default: 'player' }],
+    message: 'x of %1', args: [{ kind: 'thing', name: 'TARGET', default: 'player' }],
     tooltip: 'How far right the object is.',
   },
   {
     type: 'zm_get_y', category: 'motion', shape: 'value', fn: 'getY', output: 'Number',
-    message: 'y of %1', args: [{ kind: 'text', name: 'TARGET', default: 'player' }],
+    message: 'y of %1', args: [{ kind: 'thing', name: 'TARGET', default: 'player' }],
     tooltip: 'How far down the object is.',
   },
   {
     type: 'zm_touching', category: 'motion', shape: 'value', fn: 'touching', output: 'Boolean',
     message: '%1 is touching %2',
     args: [
-      { kind: 'text', name: 'A', default: 'player' },
-      { kind: 'text', name: 'B', default: 'coin' },
+      { kind: 'thing', name: 'A', default: 'player' },
+      { kind: 'thing', name: 'B', default: 'coin' },
     ],
     tooltip: 'True when the two objects overlap.',
   },
   {
-    type: 'zm_turn', category: 'motion', shape: 'statement', fn: 'turn',
+    type: 'zm_turn', category: 'motion', shape: 'statement', fn: 'turnBy',
     message: '↻ turn %1 by %2 degrees',
-    args: [{ kind: 'text', name: 'TARGET', default: 'player' }, num('DEGREES', 15)],
+    args: [{ kind: 'thing', name: 'TARGET', default: 'player' }, num('DEGREES', 15)],
     tooltip: 'Spins an object. Positive numbers turn clockwise.',
   },
   {
-    type: 'zm_mouse_x', category: 'motion', shape: 'value', fn: 'mouseX', output: 'Number',
+    type: 'zm_set_angle', category: 'motion', shape: 'statement', fn: 'setAngle',
+    message: '↻ point %1 at angle %2', args: [THING('player'), num('DEGREES', 0)],
+    tooltip: 'Turns an object to an exact angle. 0 is straight, 90 is turned right, -90 is turned left.',
+  },
+  {
+    type: 'zm_set_speed', category: 'motion', shape: 'statement', fn: 'setSpeed', group: 'Speed & gravity',
+    message: '🏃 set speed of %1 to x %2 y %3', args: [THING('player'), num('VX', 0), num('VY', -7)],
+    tooltip: 'Keeps an object moving by itself. Negative y goes up (great for a jump or a flap), negative x goes left.',
+  },
+  {
+    type: 'zm_set_gravity', category: 'motion', shape: 'statement', fn: 'setGravity',
+    message: '🌍 give %1 gravity %2', args: [THING('player'), num('G', 0.4)],
+    tooltip: 'Pulls an object down more and more, like falling. 0 = no gravity, 0.4 = normal, 1 = strong.',
+  },
+  {
+    type: 'zm_bounce', category: 'motion', shape: 'statement', fn: 'bounceOnEdges',
+    message: '🏀 make %1 bounce off the edges', args: [THING('ball')],
+    tooltip: 'When the object reaches the edge of the stage it bounces back.',
+  },
+  {
+    type: 'zm_speed_y', category: 'motion', shape: 'value', fn: 'getSpeedY', output: 'Number',
+    message: 'y speed of %1', args: [THING('player')],
+    tooltip: 'How fast the object is moving up (negative) or down (positive).',
+  },
+  {
+    type: 'zm_touching_edge', category: 'motion', shape: 'value', fn: 'touchingEdge', output: 'Boolean',
+    message: '%1 is touching the edge', args: [THING('player')],
+    tooltip: 'True when the object reaches or goes past the edge of the stage.',
+  },
+  {
+    type: 'zm_mouse_x', category: 'motion', shape: 'value', fn: 'getMouseX', output: 'Number',
     message: 'mouse x', args: [],
     tooltip: 'How far right the mouse (or finger) is on the stage.',
   },
   {
-    type: 'zm_mouse_y', category: 'motion', shape: 'value', fn: 'mouseY', output: 'Number',
+    type: 'zm_mouse_y', category: 'motion', shape: 'value', fn: 'getMouseY', output: 'Number',
     message: 'mouse y', args: [],
     tooltip: 'How far down the mouse (or finger) is on the stage.',
   },
@@ -278,7 +339,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_set_text', category: 'looks', shape: 'statement', fn: 'setText',
     message: 'set text of %1 to %2',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'score' },
+      { kind: 'thing', name: 'TARGET', default: 'score' },
       { kind: 'value', name: 'VALUE', check: null, default: 'Hi' },
     ],
     tooltip: 'Changes the words or number shown by a thing on the page.',
@@ -287,7 +348,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_set_color', category: 'looks', shape: 'statement', fn: 'setColor',
     message: 'set colour of %1 to %2',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'player' },
+      { kind: 'thing', name: 'TARGET', default: 'player' },
       { kind: 'value', name: 'COLOR', check: 'String', default: 'tomato' },
     ],
     tooltip: 'Changes the colour of a thing. Try red, blue, gold or #ff8800.',
@@ -301,22 +362,22 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_set_image', category: 'looks', shape: 'statement', fn: 'setImage',
     message: 'show picture %2 on %1',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'player' },
-      { kind: 'text', name: 'ASSET', default: 'picture.png' },
+      { kind: 'thing', name: 'TARGET', default: 'player' },
+      { kind: 'asset', name: 'ASSET', default: 'picture.png', media: 'image' },
     ],
     tooltip: 'Shows one of your project pictures (from Assets) on a thing.',
   },
   {
     type: 'zm_set_size', category: 'looks', shape: 'statement', fn: 'setSize',
     message: 'set size of %1 to width %2 height %3',
-    args: [{ kind: 'text', name: 'TARGET', default: 'player' }, num('WIDTH', 60), num('HEIGHT', 60)],
+    args: [{ kind: 'thing', name: 'TARGET', default: 'player' }, num('WIDTH', 60), num('HEIGHT', 60)],
     tooltip: 'Makes a thing bigger or smaller. For characters, the height is the size.',
   },
   {
     type: 'zm_set_style', category: 'looks', shape: 'statement', fn: 'setStyle',
     message: '🎨 set %2 of %1 to %3',
     args: [
-      { kind: 'text', name: 'TARGET', default: 'player' },
+      { kind: 'thing', name: 'TARGET', default: 'player' },
       { kind: 'dropdown', name: 'STYLE', options: STYLE_OPTIONS },
       str('VALUE', 'purple'),
     ],
@@ -324,12 +385,12 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
   },
   {
     type: 'zm_show', category: 'looks', shape: 'statement', fn: 'show',
-    message: 'show %1', args: [{ kind: 'text', name: 'TARGET', default: 'player' }],
+    message: 'show %1', args: [{ kind: 'thing', name: 'TARGET', default: 'player' }],
     tooltip: 'Makes a hidden thing visible.',
   },
   {
     type: 'zm_hide', category: 'looks', shape: 'statement', fn: 'hide',
-    message: 'hide %1', args: [{ kind: 'text', name: 'TARGET', default: 'player' }],
+    message: 'hide %1', args: [{ kind: 'thing', name: 'TARGET', default: 'player' }],
     tooltip: 'Hides a thing.',
   },
   // ---- Sound ----
@@ -340,7 +401,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
   },
   {
     type: 'zm_play_asset', category: 'sound', shape: 'statement', fn: 'playAudio',
-    message: '🔊 play audio file %1', args: [{ kind: 'text', name: 'ASSET', default: 'sound.mp3' }],
+    message: '🔊 play audio file %1', args: [{ kind: 'asset', name: 'ASSET', default: 'sound.mp3', media: 'sound' }],
     tooltip: 'Plays one of your uploaded audio files (from Assets).',
   },
   // ---- Values ----
@@ -364,7 +425,7 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
   },
   {
     type: 'zm_get_value', category: 'values', shape: 'value', fn: 'getValue', output: null,
-    message: 'what is typed in %1', args: [{ kind: 'text', name: 'TARGET', default: 'input' }],
+    message: 'what is typed in %1', args: [{ kind: 'thing', name: 'TARGET', default: 'input' }],
     tooltip: 'The text typed into an input box. Numbers come back as numbers.',
   },
   {

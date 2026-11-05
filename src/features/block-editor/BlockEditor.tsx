@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Blockly, buildToolbox, createTheme, registerDynamicCategories, registerZinoBlocks } from '../../programming/blocks/register';
+import { Blockly, buildToolbox, createTheme, registerDynamicCategories, registerZinoBlocks, zmChoices } from '../../programming/blocks/register';
 import type { ProjectType, WorkspaceState } from '../../model/project';
 import { promptDialog } from '../../components/Dialog';
 import { safeName } from '../../programming/generators/blocksToCode';
@@ -27,6 +27,10 @@ interface Props {
   onSelectionChange?: (hasSelection: boolean) => void;
   onEmptyChange?: (empty: boolean) => void;
   visible: boolean;
+  /** Names of things on the page/stage, offered in the name dropdowns. */
+  thingNames?: string[];
+  /** Uploaded files, offered in the picture and sound dropdowns. */
+  assets?: { name: string; mime: string }[];
 }
 
 async function createVariable(ws: Blockly.WorkspaceSvg) {
@@ -49,9 +53,12 @@ async function createVariable(ws: Blockly.WorkspaceSvg) {
 }
 
 export const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor(
-  { type, workspace, reloadToken, onChange, onSelectionChange, onEmptyChange, visible },
+  { type, workspace, reloadToken, onChange, onSelectionChange, onEmptyChange, visible, thingNames, assets },
   ref,
 ) {
+  zmChoices.things = [...(thingNames ?? [])].sort((a, b) => a.localeCompare(b));
+  zmChoices.images = (assets ?? []).filter((a) => a.mime.startsWith('image/')).map((a) => a.name);
+  zmChoices.sounds = (assets ?? []).filter((a) => a.mime.startsWith('audio/')).map((a) => a.name);
   const host = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Blockly.WorkspaceSvg | null>(null);
   const loading = useRef(false);

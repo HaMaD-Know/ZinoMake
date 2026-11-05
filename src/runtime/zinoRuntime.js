@@ -20,6 +20,10 @@
   var clickHandlers = [];
   var removed = Object.create(null);
   var mouse = { x: 0, y: 0 };
+  var moving = [];          // elements with speed, gravity or bounce
+  var copyCount = 0;
+  var pressedEls = [];      // elements under a finger / mouse button right now
+  var messageHandlers = [];
 
   function post(type, data) {
     try {
@@ -166,17 +170,137 @@
     el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } keyDown(k); });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { el.addEventListener(t, function () { keyUp(k); }); });
   }
+
+  // ---------- groups: a thing plus all its copies ----------
+  function q(v) { return String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
+  function isThing(el, name) {
+    return !!el && el.nodeType === 1 && (el.id === name || el.getAttribute('data-group') === name);
+  }
+  /** The thing called `name` and every copy of it. */
+  function all(name) {
+    var n = String(name);
+    var list = [];
+    var el = findQuiet(n);
+    if (el) list.push(el);
+    try { Array.prototype.forEach.call(document.querySelectorAll('[data-group="' + q(n) + '"]'), function (c) { if (list.indexOf(c) < 0) list.push(c); }); } catch (e) { /* ignore */ }
+    if (!list.length) find(n); // reports a friendly “nothing called …” once
+    return list;
+  }
+  function visible(el) { return el.isConnected && el.style.display !== 'none' && el.getClientRects().length > 0; }
+  function overlap(ra, rb) { return ra.left < rb.right && ra.right > rb.left && ra.top < rb.bottom && ra.bottom > rb.top; }
+  function stageRect() {
+    var st = getStage();
+    if (!st) return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    var r = st.getBoundingClientRect();
+    var l = r.left + st.clientLeft, t = r.top + st.clientTop;
+    return { left: l, top: t, right: l + st.clientWidth, bottom: t + st.clientHeight };
+  }
+
+  // ---------- speed, gravity, bounce (runs every frame while playing) ----------
+  function phys(el) {
+    var h = home(el);
+    if (!h.phys) { h.phys = { vx: 0, vy: 0, g: 0, bounce: false }; moving.push(el); }
+    return h.phys;
+  }
+  var lastTick = 0;
+  function tick(now) {
+    if (!running) return;
+    var dt = lastTick ? Math.min(3, (now - lastTick) / (1000 / 60)) : 1;
+    lastTick = now;
+    var sr = null;
+    for (var i = moving.length - 1; i >= 0; i--) {
+      var el = moving[i];
+      if (!el.isConnected) { moving.splice(i, 1); continue; }
+      var h = home(el), p = h.phys;
+      p.vy += p.g * dt;
+      if (p.vx || p.vy) { h.tx += p.vx * dt; h.ty += p.vy * dt; applyPos(el, h); }
+      if (!p.bounce && !el.classList.contains('zm-copy')) continue;
+      if (!visible(el)) continue;
+      sr = sr || stageRect();
+      var r = el.getBoundingClientRect();
+      if (p.bounce) {
+        if (r.left < sr.left && p.vx < 0) { p.vx = -p.vx; h.tx += sr.left - r.left; }
+        if (r.right > sr.right && p.vx > 0) { p.vx = -p.vx; h.tx -= r.right - sr.right; }
+        if (r.top < sr.top && p.vy < 0) { p.vy = -p.vy; h.ty += sr.top - r.top; }
+        if (r.bottom > sr.bottom && p.vy > 0) { p.vy = -p.vy * (p.g ? 0.8 : 1); h.ty -= r.bottom - sr.bottom; }
+        applyPos(el, h);
+      } else if (r.right < sr.left - 20 || r.left > sr.right + 600 || r.top > sr.bottom + 400 || r.bottom < sr.top - 400) {
+        el.remove(); // copies that leave the stage tidy themselves up
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
   var cursorStyle = null;
   function pointerCursor(name) {
     try {
       if (!cursorStyle) { cursorStyle = document.createElement('style'); document.head.appendChild(cursorStyle); }
       var n = String(name);
       var sel = (window.CSS && CSS.escape) ? '#' + CSS.escape(n) : '[id="' + n.replace(/"/g, '') + '"]';
-      cursorStyle.textContent += sel + ',[data-name="' + n.replace(/"/g, '') + '"]{cursor:pointer}\n';
+      cursorStyle.textContent += sel + ',[data-name="' + q(n) + '"],[data-group="' + q(n) + '"]{cursor:pointer}\n';
     } catch (e) { /* cosmetic only */ }
   }
 
   var api = {
+    setSpeed: function (target, vx, vy) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var p = phys(el); p.vx = num(vx, 0); p.vy = num(vy, 0);
+    },
+    setGravity: function (target, g) { checkRunning(); var el = find(target); if (el) phys(el).g = num(g, 0); },
+    bounceOnEdges: function (target) { checkRunning(); var el = find(target); if (el) phys(el).bounce = true; },
+    getSpeedY: function (target) { var el = findQuiet(target); var h = el && homes.get(el); return h && h.phys ? Math.round(h.phys.vy * 100) / 100 : 0; },
+    touchingEdge: function (target) {
+      var el = find(target); if (!el || !visible(el)) return false;
+      var r = el.getBoundingClientRect(), s = stageRect();
+      return r.left <= s.left || r.right >= s.right || r.top <= s.top || r.bottom >= s.bottom;
+    },
+    setAngle: function (target, degrees) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var h = home(el); h.rot = num(degrees, 0); el.style.rotate = h.rot + 'deg';
+    },
+    makeCopy: function (target, x, y) {
+      checkRunning();
+      var n = String(target);
+      var orig = find(n); if (!orig) return;
+      var c = orig.cloneNode(true);
+      var cs = window.getComputedStyle(orig);
+      ['width', 'height', 'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundRepeat', 'backgroundPosition', 'borderRadius', 'color', 'fontSize', 'lineHeight'].forEach(function (prop) {
+        if (!c.style[prop] && cs[prop] && cs[prop] !== 'auto') c.style[prop] = cs[prop];
+      });
+      copyCount += 1;
+      c.id = n + '-copy-' + copyCount;
+      c.setAttribute('data-name', c.id);
+      c.setAttribute('data-group', n);
+      c.classList.add('zm-copy');
+      c.style.position = 'absolute';
+      c.style.left = num(x, 0) + 'px';
+      c.style.top = num(y, 0) + 'px';
+      c.style.translate = '';
+      var oh = home(orig);
+      c.style.display = oh.display || '';
+      (orig.parentElement || stage()).appendChild(c);
+      var ch = home(c);
+      ch.rot = oh.rot;
+      if (oh.phys) { var p = phys(c); p.vx = oh.phys.vx; p.vy = oh.phys.vy; p.g = oh.phys.g; p.bounce = oh.phys.bounce; }
+      else phys(c); // so it is tidied up when it leaves the stage
+    },
+    removeCopies: function (target) {
+      checkRunning();
+      try { Array.prototype.forEach.call(document.querySelectorAll('[data-group="' + q(String(target)) + '"]'), function (c) { c.remove(); }); } catch (e) { /* ignore */ }
+    },
+    isPressed: function (target) {
+      var n = String(target);
+      for (var i = 0; i < pressedEls.length; i++) if (isThing(pressedEls[i], n)) return true;
+      return false;
+    },
+    sendMessage: function (message) {
+      checkRunning();
+      var m = String(message);
+      messageHandlers.forEach(function (h) { if (h.msg === m) run(h.fn); });
+    },
+    onMessage: function (message, fn) { messageHandlers.push({ msg: String(message), fn: fn }); },
     setStage: function (w, h, color) { checkRunning(); makeStage(w, h, color); },
     addCharacter: function (name, look, x, y, size) {
       checkRunning();
@@ -246,26 +370,27 @@
         bindKeyButton(btn);
       });
     },
-    remove: function (target) {
+    removeThing: function (target) {
       checkRunning();
       var n = String(target);
       var el = findQuiet(n);
       removed[n] = true;
       if (el) el.remove();
     },
-    turn: function (target, degrees) {
+    turnBy: function (target, degrees) {
       checkRunning();
       var el = find(target); if (!el) return;
       var h = home(el); h.rot = (h.rot + num(degrees, 0)) % 360; el.style.rotate = h.rot + 'deg';
     },
-    mouseX: function () { var st = getStage(); return Math.round(st ? mouse.x - st.getBoundingClientRect().left - st.clientLeft : mouse.x); },
-    mouseY: function () { var st = getStage(); return Math.round(st ? mouse.y - st.getBoundingClientRect().top - st.clientTop : mouse.y); },
+    getMouseX: function () { var st = getStage(); return Math.round(st ? mouse.x - st.getBoundingClientRect().left - st.clientLeft : mouse.x); },
+    getMouseY: function () { var st = getStage(); return Math.round(st ? mouse.y - st.getBoundingClientRect().top - st.clientTop : mouse.y); },
     setSize: function (target, w, h) {
       checkRunning();
       var el = find(target); if (!el) return;
       if (el.classList.contains('zm-character') || el.classList.contains('zm-label')) { el.style.fontSize = num(h, 48) + 'px'; return; }
       el.style.width = num(w, 60) + 'px';
-      if (el.tagName === 'IMG') el.style.height = 'auto'; else el.style.height = num(h, 60) + 'px';
+      el.style.height = num(h, 60) + 'px';
+      if (el.tagName === 'IMG') el.style.objectFit = 'fill';
     },
     setStyle: function (target, style, value) {
       checkRunning();
@@ -314,11 +439,13 @@
     getX: function (target) { var el = find(target); return el ? Math.round(baseX(el) + home(el).tx) : 0; },
     getY: function (target) { var el = find(target); return el ? Math.round(baseY(el) + home(el).ty) : 0; },
     touching: function (a, b) {
-      var ea = find(a), eb = find(b);
-      if (!ea || !eb) return false;
-      if (ea.style.display === 'none' || eb.style.display === 'none') return false;
-      var ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
-      return ra.left < rb.right && ra.right > rb.left && ra.top < rb.bottom && ra.bottom > rb.top;
+      // Each side may be a thing with copies: true if any one of them overlaps any other.
+      var la = all(a).filter(visible), lb = all(b).filter(visible);
+      for (var i = 0; i < la.length; i++) {
+        var ra = la[i].getBoundingClientRect();
+        for (var j = 0; j < lb.length; j++) if (la[i] !== lb[j] && overlap(ra, lb[j].getBoundingClientRect())) return true;
+      }
+      return false;
     },
     setColor: function (target, color) {
       checkRunning();
@@ -455,13 +582,21 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-key]'), bindKeyButton);
   }
 
+  function chain(start) {
+    var list = [];
+    for (var el = start; el && el.nodeType === 1; el = el.parentElement) list.push(el);
+    return list;
+  }
   document.addEventListener('click', function (e) {
     if (!running) return;
+    var under = chain(e.target);
     clickHandlers.forEach(function (h) {
-      var el = findQuiet(h.name);
-      if (el && (el === e.target || el.contains(e.target))) run(h.fn);
+      for (var i = 0; i < under.length; i++) if (isThing(under[i], h.name)) { run(h.fn); return; }
     });
   });
+  document.addEventListener('pointerdown', function (e) { pressedEls = chain(e.target); }, true);
+  ['pointerup', 'pointercancel'].forEach(function (t) { document.addEventListener(t, function () { pressedEls = []; }, true); });
+  window.addEventListener('blur', function () { pressedEls = []; });
   ['pointermove', 'pointerdown'].forEach(function (t) {
     document.addEventListener(t, function (e) { mouse.x = e.clientX; mouse.y = e.clientY; }, true);
   });
@@ -492,6 +627,7 @@
     start: function () {
       bindTouchKeys();
       post('started', {});
+      requestAnimationFrame(tick);
       startHandlers.forEach(function (fn) { run(fn); });
       // Things can be made by blocks after Play, so only warn about unknown click names a moment later.
       timers.push(setTimeout(function () { if (running) checkClickTargets(); }, 1500));

@@ -22,9 +22,9 @@ const MAKE_THINGS = `onStart(async () => {
   setSize("ball", 60, 60);
   setStyle("ball", "fill", "purple");
   setStyle("title", "seeThrough", 50);
-  turn("player", 15);
-  moveTo("ball", mouseX(), roundNumber(mouseY()));
-  remove("ball");
+  turnBy("player", 15);
+  moveTo("ball", getMouseX(), roundNumber(getMouseY()));
+  removeThing("ball");
   stop();
 });
 `;
@@ -40,13 +40,13 @@ describe('“Make things” blocks', () => {
 
   it('every new block exists in the catalogue', () => {
     const fns = new Set(CALL_BLOCKS.map((b) => b.fn));
-    for (const fn of ['setStage', 'addCharacter', 'addBox', 'addCircle', 'addPicture', 'addLabel', 'addTitle', 'addParagraph', 'addButton', 'addInput', 'addArrowButtons', 'remove', 'turn', 'mouseX', 'mouseY', 'setSize', 'setStyle', 'roundNumber', 'stop']) {
+    for (const fn of ['setStage', 'addCharacter', 'addBox', 'addCircle', 'addPicture', 'addLabel', 'addTitle', 'addParagraph', 'addButton', 'addInput', 'addArrowButtons', 'removeThing', 'turnBy', 'getMouseX', 'getMouseY', 'setSize', 'setStyle', 'roundNumber', 'stop']) {
       expect(fns.has(fn), fn).toBe(true);
     }
   });
 
   it('finds names made by blocks for the helper', () => {
-    expect(madeNamesFromCode(MAKE_THINGS)).toEqual(['player', 'floor', 'ball', 'cat', 'score', 'title', 'words', 'button', 'name']);
+    expect(madeNamesFromCode(MAKE_THINGS)).toEqual(['player', 'floor', 'ball', 'cat', 'score', 'title', 'words', 'button', 'name', 'stage']);
   });
 });
 
@@ -118,7 +118,7 @@ describe('runtime: making things', () => {
     api.addBox('b', 0, 0, 10, 10, 'red');
     api.setSize('b', 70, 80);
     expect(document.getElementById('b')!.style.width).toBe('70px');
-    api.remove('b');
+    api.removeThing('b');
     expect(document.getElementById('b')).toBeNull();
     expect(api.roundNumber(2.6)).toBe(3);
   });
@@ -131,5 +131,51 @@ describe('runtime: making things', () => {
     expect(api.isKeyDown('ArrowLeft')).toBe(true);
     btns[0].dispatchEvent(new Event('pointerup'));
     expect(api.isKeyDown('ArrowLeft')).toBe(false);
+  });
+
+  it('copies: made with a group name, removed together, clicks on a copy count for the original', async () => {
+    let clicks = 0;
+    api.onClick('wall', () => { clicks += 1; });
+    zm.start();
+    api.addBox('wall', 0, 0, 50, 200, 'green');
+    api.makeCopy('wall', 300, 10);
+    api.makeCopy('wall', 300, 250);
+    const copies = document.querySelectorAll('[data-group="wall"]');
+    expect(copies.length).toBe(2);
+    expect((copies[0] as HTMLElement).style.left).toBe('300px');
+    expect((copies[0] as HTMLElement).style.backgroundColor).toBe('green');
+    (copies[1] as HTMLElement).click();
+    await Promise.resolve();
+    expect(clicks).toBe(1);
+    api.removeCopies('wall');
+    expect(document.querySelectorAll('[data-group="wall"]').length).toBe(0);
+    expect(document.getElementById('wall')).not.toBeNull();
+  });
+
+  it('is pressed: true only while held down on that thing', () => {
+    api.addPicture('up', 'cat.png', 0, 0, 40);
+    const up = document.getElementById('up')!;
+    up.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(api.isPressed('up')).toBe(true);
+    expect(api.isPressed('down')).toBe(false);
+    document.dispatchEvent(new Event('pointerup'));
+    expect(api.isPressed('up')).toBe(false);
+  });
+
+  it('messages run every matching “when I get message”', async () => {
+    const got: string[] = [];
+    api.onMessage('game over', () => { got.push('a'); });
+    api.onMessage('game over', () => { got.push('b'); });
+    api.onMessage('other', () => { got.push('x'); });
+    api.sendMessage('game over');
+    await Promise.resolve();
+    expect(got).toEqual(['a', 'b']);
+  });
+
+  it('speed and gravity are remembered per thing', () => {
+    api.addCharacter('bird', '🐤', 10, 10, 40);
+    api.setSpeed('bird', 0, -6.5);
+    api.setGravity('bird', 0.35);
+    expect(api.getSpeedY('bird')).toBe(-6.5);
   });
 });

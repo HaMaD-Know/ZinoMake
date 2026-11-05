@@ -470,6 +470,83 @@ onKey("Space", async () => {
 });
 `,
   },
+  {
+    id: 'game-fly-gaps',
+    type: 'game',
+    name: 'Fly Through the Gaps',
+    description: 'Tap, click or press space to fly up. Glide through the gaps and don’t touch the walls!',
+    emoji: '🐤',
+    colors: ['#74c0fc', '#b2f2bb'],
+    nextIdeas: [
+      'Use your own pictures: add a bird and a wall picture in Pictures & sounds, then change “add character bird” to “add picture bird” and “add box wall” to “add picture wall”.',
+      'Make the walls faster by changing the wall speed from -3 to -4.',
+      'Make the gap bigger or smaller by changing 130 in the second “make a copy of wall”.',
+    ],
+    html: `<!doctype html>
+<html>
+<head><title>Fly Through the Gaps</title></head>
+<body>
+</body>
+</html>
+`,
+    css: GAME_BASE_CSS,
+    js: `let score = 0;
+let gap = 0;
+let started = false;
+
+onStart(async () => {
+  setStage(360, 400, "skyblue");
+  addCharacter("bird", "🐤", 60, 160, 40);
+  addBox("wall", 400, 0, 50, 260, "seagreen");
+  setStyle("wall", "border", "darkgreen");
+  hide("wall");
+  setSpeed("wall", -3, 0);
+  addLabel("score", "Score: 0", 10, 10, 22);
+  setStyle("score", "layer", 10);
+  say("Tap or press space to start!");
+  forever(async () => {
+    setAngle("bird", getSpeedY("bird") * 4);
+    if (touching("bird", "wall") || touchingEdge("bird")) {
+      sendMessage("game over");
+    }
+  });
+});
+
+onKey("Space", async () => {
+  await flap();
+});
+
+onClick("stage", async () => {
+  await flap();
+});
+
+every(1.6, async () => {
+  if (started) {
+    gap = random(50, 220);
+    makeCopy("wall", 360, gap - 260);
+    makeCopy("wall", 360, gap + 130);
+    score += 1;
+    setText("score", join("Score: ", score));
+  }
+});
+
+onMessage("game over", async () => {
+  playSound("lose");
+  say(join("Game over! Your score: ", score));
+  stop();
+});
+
+async function flap() {
+  if (!started) {
+    started = true;
+    say("");
+    setGravity("bird", 0.35);
+  }
+  setSpeed("bird", 0, -6.5);
+  playSound("jump");
+}
+`,
+  },
   // ------------------------------------------------------------------ APPS
   {
     id: 'app-counter',

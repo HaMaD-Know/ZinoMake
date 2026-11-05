@@ -6,6 +6,72 @@ import * as Blockly from 'blockly';
 import type { ProjectType } from '../../model/project';
 import { CALL_BLOCKS, CATEGORIES, type ArgSpec, type CategoryId, type CallBlockSpec } from './catalog';
 import { safeName } from '../generators/blocksToCode';
+import { promptDialog } from '../../components/Dialog';
+
+/**
+ * What the name/picture/sound dropdowns offer. Kept up to date by the block editor
+ * (names made by blocks + ids in index.html, and the project's uploaded files).
+ */
+export const zmChoices: { things: string[]; images: string[]; sounds: string[] } = { things: [], images: [], sounds: [] };
+
+const NEW_NAME = '\u0000zm-new-name';
+type ChoiceSource = 'thing' | 'image' | 'sound';
+
+/**
+ * A dropdown that lists known names (or files) but accepts any value, so code that
+ * names something not (yet) in the list still loads exactly. “Type a name…” lets people
+ * use a name that isn't listed.
+ */
+class FieldZmChoice extends Blockly.FieldDropdown {
+  private zmSource: ChoiceSource;
+  private zmPending: string | null = null;
+
+  constructor(source: ChoiceSource, value: string) {
+    super(function (this: FieldZmChoice) {
+      return this.zmOptions();
+    } as Blockly.MenuGeneratorFunction);
+    this.zmSource = source;
+    this.setValue(value);
+  }
+
+  static override fromJson(options: Blockly.FieldDropdownFromJsonConfig & { source?: ChoiceSource; text?: string }): FieldZmChoice {
+    return new FieldZmChoice(options.source ?? 'thing', options.text ?? '');
+  }
+
+  zmOptions(): Blockly.MenuOption[] {
+    const source = this.zmSource ?? 'thing';
+    const list = source === 'thing' ? zmChoices.things : source === 'image' ? zmChoices.images : zmChoices.sounds;
+    const values = new Set<string>(list);
+    const current = this.zmPending ?? (this.getValue() as string | null);
+    if (current) values.add(current);
+    const opts: Blockly.MenuOption[] = [...values].map((v) => [v, v]);
+    if (source === 'thing') opts.push(['✏️ type a name…', NEW_NAME]);
+    else if (!list.length) opts.push([source === 'image' ? '(add pictures in Pictures & sounds)' : '(add sounds in Pictures & sounds)', current || '']);
+    return opts.length ? opts : [['', '']];
+  }
+
+  override getOptions(): Blockly.MenuOption[] {
+    return this.zmOptions();
+  }
+
+  protected override doClassValidation_(newValue?: string): string | null {
+    if (newValue === NEW_NAME) {
+      void promptDialog({ title: 'Which thing?', label: 'Type the name of the thing (the name you gave it in “add …”)', initial: String(this.getValue() ?? '') }).then((name) => {
+        const n = name?.trim();
+        if (n) this.setValue(n);
+      });
+      return null;
+    }
+    if (typeof newValue !== 'string') return null;
+    this.zmPending = newValue;
+    return newValue;
+  }
+
+  protected override doValueUpdate_(newValue: string): void {
+    super.doValueUpdate_(newValue);
+    this.zmPending = null;
+  }
+}
 
 const colourOf = (id: CategoryId) => CATEGORIES.find((c) => c.id === id)!.colour;
 
@@ -13,6 +79,10 @@ function argJson(a: ArgSpec): Record<string, unknown> {
   switch (a.kind) {
     case 'text':
       return { type: 'field_input', name: a.name, text: a.default, spellcheck: false };
+    case 'thing':
+      return { type: 'field_zm_choice', name: a.name, source: 'thing', text: a.default };
+    case 'asset':
+      return { type: 'field_zm_choice', name: a.name, source: a.media, text: a.default };
     case 'dropdown':
       return { type: 'field_dropdown', name: a.name, options: a.options };
     case 'number':
@@ -53,6 +123,7 @@ let registered = false;
 export function registerZinoBlocks(): void {
   if (registered) return;
   registered = true;
+  Blockly.fieldRegistry.register('field_zm_choice', FieldZmChoice as unknown as Blockly.fieldRegistry.RegistrableField);
 
   Blockly.common.defineBlocksWithJsonArray([
     ...CALL_BLOCKS.map(callBlockJson),
