@@ -7,3 +7,4 @@ tests/e2e/screenshots/
 .env
 .env.*
 *.tsbuildinfo
+build-output/
