@@ -4,6 +4,7 @@ import { codeToBlocks } from '../../src/programming/parsers/codeToBlocks';
 import { blocksToCode } from '../../src/programming/generators/blocksToCode';
 import { createProjectFromTemplate } from '../../src/model/createProject';
 import { PROJECT_TYPES } from '../../src/model/project';
+import { designNames } from '../../src/design/model';
 
 const all = [...TEMPLATES, ...PROJECT_TYPES.map(blankTemplate)];
 
@@ -24,6 +25,7 @@ describe('starter templates', () => {
     const ids = new Set([...t.html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
     for (const [, made] of t.js.matchAll(/add(?:Character|Box|Circle|Picture|Label|Title|Paragraph|Button|Input)\("([^"]+)"/g)) ids.add(made);
     if (/\bsetStage\(/.test(t.js)) ids.add('stage');
+    for (const n of designNames(t.design ?? null)) ids.add(n);
     const used = [...t.js.matchAll(/(?:onClick|move|moveTo|getX|getY|setText|setColor|setSize|setStyle|turnBy|removeThing|show|hide|getValue)\("([^"]+)"/g)].map((m) => m[1]);
     for (const [, a, b] of t.js.matchAll(/touching\("([^"]+)", "([^"]+)"\)/g)) used.push(a, b);
     for (const u of used) expect(ids, `${t.id} uses #${u}`).toContain(u);

@@ -13,6 +13,15 @@ tablet or phone. No account, no installs for users, no paid services.
 - **Real block coding** (Blockly): events, movement, looks, sound, numbers & text, decisions,
   repeat, variables (“Remember”), your own blocks (“My blocks”), and time. Blocks snap,
   nest, undo/redo, zoom and pan, and work with touch.
+- **Design view (visual editor)** — build screens by adding components and changing them in a
+  properties panel, like App Inventor or a page builder: nav bar, sections, rows, columns, cards,
+  game stage, titles, text, lists, links, your own pictures, emoji characters, shapes, buttons,
+  text boxes, big text boxes, checkboxes, dropdowns and sliders. Change words, pictures, colours,
+  sizes, spacing, borders, shadows and layout; drag things on a game stage and resize them with the
+  corner handle. Each thing has **When tapped** (go to a screen, show a message, play a sound, open
+  a link) and a button that opens Blocks with “when … is clicked” ready. Several **screens** with
+  a nav bar, a project **theme** (main colour, font, corners), phone/tablet/desktop canvas sizes,
+  undo/redo. Saved as `design.json`; try the *Shop App* and *Business Website* starters.
 - **Make things with blocks** — the *Make things* category adds a stage, emoji characters,
   boxes, circles, pictures, words, titles, buttons, typing boxes and phone arrow buttons, and
   *Looks* can resize, restyle and turn them. You never need to edit `index.html` or

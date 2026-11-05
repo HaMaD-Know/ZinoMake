@@ -21,8 +21,21 @@ src/
     assistant/    helper.ts — rule-based plain-English → code
   runtime/        zinoRuntime.js (injected into the preview), buildPreview.ts
   storage/        IndexedDB (idb), migrations, ZIP import/export (fflate)
-  templates/      starter projects
+  templates/      starter projects (designTemplates.ts: starters made in the Design view)
+  design/         model.ts (design.json: screens, components, tree operations), render.ts (design → HTML/CSS)
+  features/design DesignEditor: palette, layers, canvas, properties
 ```
+
+## Design view
+
+`design.json` holds a theme and a list of screens, each a tree of components (`src/design/model.ts`).
+`renderDesign` turns it into plain HTML with one `.zm-screen` per screen; every component's
+element id is its name, so blocks use designed things exactly like elements in `index.html`.
+The same renderer feeds the preview, the exported page and the designer canvas. The canvas is an
+`<iframe sandbox="allow-same-origin">` showing the sanitised page (no scripts run); the editor
+attaches pointer listeners to select, drag (things on a stage) and resize. “When tapped” actions are
+`data-zm-tap` attributes handled by the runtime, so navigation needs no code. Blocks add
+`goToScreen`, `onScreen`, `onChange` and `setValue`.
 
 ## One shared representation
 

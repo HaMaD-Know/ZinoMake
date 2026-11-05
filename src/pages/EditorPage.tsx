@@ -19,11 +19,13 @@ import { findTemplate } from '../templates/templates';
 import { createProjectFromTemplate } from '../model/createProject';
 import { elementIdsFromHtml, madeNamesFromCode } from '../programming/assistant/helper';
 import { exportProject, exportSource, exportWebPage } from '../app/projectService';
+import { DesignEditor, type DesignEditorHandle } from '../features/design/DesignEditor';
+import { designNames, hasDesignFile, readDesign } from '../design/model';
 
 const CodeEditor = lazy(() => import('../features/code-editor/CodeEditor'));
 
-type View = 'blocks' | 'code';
-type MobileView = 'blocks' | 'code' | 'preview';
+type View = 'design' | 'blocks' | 'code';
+type MobileView = 'design' | 'blocks' | 'code' | 'preview';
 
 function useIsPhone() {
   const [phone, setPhone] = useState(() => window.matchMedia('(max-width: 760px)').matches);
@@ -53,12 +55,23 @@ export default function EditorPage({ projectId }: { projectId: string }) {
   const [dark, setDark] = useState(isDarkTheme);
 
   const blocks = useRef<BlockEditorHandle>(null);
+  const designer = useRef<DesignEditorHandle>(null);
   const code = useRef<CodeEditorHandle>(null);
   const preview = useRef<PreviewHandle>(null);
   const projectRef = useRef<Project | null>(null);
   projectRef.current = project;
 
   useEffect(() => writePref('showPreview', showPreview), [showPreview]);
+  // Projects with a design open in the Design view.
+  const openedView = useRef(false);
+  useEffect(() => {
+    if (!project || openedView.current) return;
+    openedView.current = true;
+    if (hasDesignFile(project)) {
+      setView('design');
+      setMobileView('design');
+    }
+  }, [project]);
   useEffect(() => {
     if (project && !project.files.some((f) => f.path === activeFile && f.kind === 'file')) setActiveFile(project.blocksFile);
   }, [project, activeFile]);
@@ -77,6 +90,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
   const currentMain: View | 'preview' = phone ? mobileView : view;
   const blocksVisible = currentMain === 'blocks';
   const codeVisible = currentMain === 'code';
+  const designVisible = currentMain === 'design';
 
   const switchTo = useCallback((v: MobileView) => {
     if (v === 'blocks') ed.flushCodeSync();
@@ -90,6 +104,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
     ed.flushCodeSync();
     if (phone) setMobileView('preview');
     else setShowPreview(true);
+    setRunning(true);
     // Let React apply the latest state before building the preview.
     setTimeout(() => preview.current?.play(), 0);
   }, [ed, phone]);
@@ -133,10 +148,16 @@ export default function EditorPage({ projectId }: { projectId: string }) {
 
   const template = findTemplate(project.templateId);
   const isBlocksFile = activeFile === project.blocksFile;
+  const design = readDesign(project);
+  const screenNames = design ? design.screens.map((s) => s.name) : [];
   const elementIds = [...new Set([
+    ...designNames(design),
     ...madeNamesFromCode(getFileContent(project, project.blocksFile)),
     ...elementIdsFromHtml(project.files.filter((f) => f.path.endsWith('.html')).map((f) => f.content).join('\n')),
   ])];
+
+  // In the Design view the canvas already shows the page, so the preview appears only while playing.
+  const previewShown = showPreview && (view !== 'design' || running);
 
   const rename = async () => {
     const name = await promptDialog({ title: 'Rename project', label: 'Project name', initial: project.name });
@@ -209,8 +230,26 @@ export default function EditorPage({ projectId }: { projectId: string }) {
     });
   };
 
-  const undo = () => (currentMain === 'code' ? code.current?.undo() : blocks.current?.undo());
-  const redo = () => (currentMain === 'code' ? code.current?.redo() : blocks.current?.redo());
+  const undo = () => (currentMain === 'code' ? code.current?.undo() : currentMain === 'design' ? designer.current?.undo() : blocks.current?.undo());
+  const redo = () => (currentMain === 'code' ? code.current?.redo() : currentMain === 'design' ? designer.current?.redo() : blocks.current?.redo());
+
+  /** From the Design view: open Blocks with a “when NAME is clicked / changes” block ready to fill. */
+  const useBlocksFor = (name: string, kind: 'click' | 'change') => {
+    if (ed.syntaxError) {
+      toast('Fix the mistake in the code first.', 'error');
+      return;
+    }
+    const fn = kind === 'click' ? 'onClick' : 'onChange';
+    const current = getFileContent(project, project.blocksFile);
+    if (!current.includes(`${fn}(${JSON.stringify(name)},`)) {
+      const snippet = `${fn}(${JSON.stringify(name)}, async () => {\n});\n`;
+      ed.onCodeChanged(project.blocksFile, current.trimEnd() ? `${current.trimEnd()}\n\n${snippet}` : snippet);
+      ed.flushCodeSync();
+    }
+    switchTo('blocks');
+    setTimeout(() => blocks.current?.reveal(kind === 'click' ? 'zm_on_click' : 'zm_on_change', 'TARGET', name), 350);
+    toast(kind === 'click' ? `Put blocks inside “when ${name} is clicked”.` : `Put blocks inside “when ${name} changes”.`);
+  };
 
   return (
     <div className="editor">
@@ -221,6 +260,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
         <span className="hide-phone" aria-hidden="true"><LogoMark size={28} /></span>
         <button className="proj-name" onClick={() => void rename()} title="Rename project" aria-label={`Project name: ${project.name}. Click to rename.`}>{project.name}</button>
         <div className="seg" role="group" aria-label="View">
+          <button aria-pressed={view === 'design'} onClick={() => switchTo('design')} data-testid="view-design"><Icon name="image" size={18} /> Design</button>
           <button aria-pressed={view === 'blocks'} onClick={() => switchTo('blocks')} data-testid="view-blocks"><Icon name="blocks" size={18} /> Blocks</button>
           <button aria-pressed={view === 'code'} onClick={() => switchTo('code')} data-testid="view-code"><Icon name="code" size={18} /> Code</button>
           <button aria-pressed={showPreview} onClick={() => setShowPreview((s) => !s)} title="Show or hide the preview"><Icon name="eye" size={18} /> Preview</button>
@@ -256,7 +296,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
         </div>
       )}</div>
 
-      <div className={`ebody${showPreview || phone ? '' : ' no-preview'}${side ? ' has-side' : ''}`} data-mobile-view={mobileView}>
+      <div className={`ebody${previewShown || phone ? '' : ' no-preview'}${side ? ' has-side' : ''}`} data-mobile-view={mobileView}>
         <aside className="side" hidden={!side} aria-label={side === 'assets' ? 'Pictures and sounds' : 'Files'}>
           <div className="seg" role="group" aria-label="Side panel" style={{ margin: 8 }}>
             <button aria-pressed={side === 'files'} onClick={() => setSide('files')}>Files</button>
@@ -273,7 +313,10 @@ export default function EditorPage({ projectId }: { projectId: string }) {
           {side === 'assets' && <AssetsPanel project={project} onChange={ed.update} onUse={useAsset} />}
         </aside>
 
-        <section className="main-view" aria-label={codeVisible ? 'Code' : 'Blocks'}>
+        <section className="main-view" aria-label={codeVisible ? 'Code' : designVisible ? 'Design' : 'Blocks'}>
+          <div style={{ display: designVisible ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <DesignEditor ref={designer} project={project} onUpdate={ed.update} phone={phone} visible={designVisible} onUseBlocks={useBlocksFor} />
+          </div>
           {/* Blocks view stays mounted so switching views never resets the workspace. */}
           <div style={{ display: blocksVisible ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <div className="view-toolbar">
@@ -300,6 +343,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
                 visible={blocksVisible}
                 thingNames={elementIds}
                 assets={project.assets}
+                screens={screenNames}
               />
               {emptyWorkspace && !ed.syntaxError && (
                 <div className="empty-hint">
@@ -363,7 +407,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
           )}
         </section>
 
-        {(showPreview || phone) && (
+        {(previewShown || phone) && (
           <PreviewPane ref={preview} getProject={() => projectRef.current} onRunningChange={setRunning} onShowLine={() => { setActiveFile(project.blocksFile); switchTo('code'); }} />
         )}
       </div>
@@ -382,6 +426,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
       </footer>
 
       <nav className="mobile-nav" aria-label="Editor views">
+        <button aria-pressed={mobileView === 'design'} onClick={() => switchTo('design')}><Icon name="image" /> Design</button>
         <button aria-pressed={mobileView === 'blocks'} onClick={() => switchTo('blocks')}><Icon name="blocks" /> Blocks</button>
         <button aria-pressed={mobileView === 'code'} onClick={() => switchTo('code')}><Icon name="code" /> Code</button>
         <button aria-pressed={mobileView === 'preview'} onClick={() => switchTo('preview')}><Icon name="eye" /> Preview</button>

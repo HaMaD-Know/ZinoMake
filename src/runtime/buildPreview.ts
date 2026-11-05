@@ -11,6 +11,8 @@ import * as acorn from 'acorn';
 import runtimeSource from './zinoRuntime.js?raw';
 import type { Project } from '../model/project';
 import { parseJs } from '../programming/parsers/codeToBlocks';
+import { readDesign } from '../design/model';
+import { designCss, insertDesignHtml, renderDesign } from '../design/render';
 
 export const PREVIEW_CSP =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:";
@@ -83,6 +85,9 @@ export function buildPreviewDocument({ project, assetUrls }: PreviewInput): stri
   const main = files.find((f) => f.path === mainPath);
 
   let html = htmlFile?.content ?? '<!doctype html><html><head></head><body></body></html>';
+  // The visual design (design.json) becomes real elements at the top of the page.
+  const design = readDesign(project);
+  if (design) html = insertDesignHtml(html, renderDesign(design));
   html = replaceAssetRefs(html, assetUrls);
   // Local <script src> / <link href> can't load inside the sandbox (no network); files are inlined below.
   html = html.replace(/<script\b[^>]*\bsrc=["'](?!data:)[^"']*["'][^>]*>\s*<\/script>/gi, '');
@@ -91,6 +96,7 @@ export function buildPreviewDocument({ project, assetUrls }: PreviewInput): stri
     `<meta charset="utf-8">`,
     `<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
+    ...(design ? [`<style>${escapeStyle(designCss(design.theme))}</style>`] : []),
     `<style>${escapeStyle(replaceAssetRefs(css, assetUrls))}</style>`,
     `<script>window.__ZM_ASSETS=${escapeScript(JSON.stringify(assetUrls))};window.__ZM_LINE_OFFSET=${WRAP_LINES};</script>`,
     `<script>${escapeScript(runtimeSource)}\n//# sourceURL=zinomake-runtime.js</script>`,

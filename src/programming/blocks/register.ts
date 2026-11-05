@@ -12,10 +12,10 @@ import { promptDialog } from '../../components/Dialog';
  * What the name/picture/sound dropdowns offer. Kept up to date by the block editor
  * (names made by blocks + ids in index.html, and the project's uploaded files).
  */
-export const zmChoices: { things: string[]; images: string[]; sounds: string[] } = { things: [], images: [], sounds: [] };
+export const zmChoices: { things: string[]; images: string[]; sounds: string[]; screens: string[] } = { things: [], images: [], sounds: [], screens: [] };
 
 const NEW_NAME = '\u0000zm-new-name';
-type ChoiceSource = 'thing' | 'image' | 'sound';
+type ChoiceSource = 'thing' | 'image' | 'sound' | 'screen';
 
 /**
  * A dropdown that lists known names (or files) but accepts any value, so code that
@@ -40,12 +40,12 @@ class FieldZmChoice extends Blockly.FieldDropdown {
 
   zmOptions(): Blockly.MenuOption[] {
     const source = this.zmSource ?? 'thing';
-    const list = source === 'thing' ? zmChoices.things : source === 'image' ? zmChoices.images : zmChoices.sounds;
+    const list = source === 'thing' ? zmChoices.things : source === 'image' ? zmChoices.images : source === 'screen' ? zmChoices.screens : zmChoices.sounds;
     const values = new Set<string>(list);
     const current = this.zmPending ?? (this.getValue() as string | null);
     if (current) values.add(current);
     const opts: Blockly.MenuOption[] = [...values].map((v) => [v, v]);
-    if (source === 'thing') opts.push(['✏️ type a name…', NEW_NAME]);
+    if (source === 'thing' || source === 'screen') opts.push(['✏️ type a name…', NEW_NAME]);
     else if (!list.length) opts.push([source === 'image' ? '(add pictures in Pictures & sounds)' : '(add sounds in Pictures & sounds)', current || '']);
     return opts.length ? opts : [['', '']];
   }
@@ -80,7 +80,7 @@ function argJson(a: ArgSpec): Record<string, unknown> {
     case 'text':
       return { type: 'field_input', name: a.name, text: a.default, spellcheck: false };
     case 'thing':
-      return { type: 'field_zm_choice', name: a.name, source: 'thing', text: a.default };
+      return { type: 'field_zm_choice', name: a.name, source: a.source ?? 'thing', text: a.default };
     case 'asset':
       return { type: 'field_zm_choice', name: a.name, source: a.media, text: a.default };
     case 'dropdown':

@@ -54,7 +54,7 @@ export type ValueCheck = 'Number' | 'String' | 'Boolean' | null;
 export type ArgSpec =
   | { kind: 'text'; name: string; default: string; label?: string }
   /** The name of a thing on the page/stage: a dropdown of known names (or type a new one). Code: a "string". */
-  | { kind: 'thing'; name: string; default: string }
+  | { kind: 'thing'; name: string; default: string; source?: 'thing' | 'screen' }
   /** One of the project's uploaded files: a dropdown of pictures or sounds. Code: a "string". */
   | { kind: 'asset'; name: string; default: string; media: 'image' | 'sound' }
   | { kind: 'dropdown'; name: string; options: [string, string][] }
@@ -229,6 +229,21 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     tooltip: 'True while this key is held down. Great inside “forever”.',
   },
   {
+    type: 'zm_on_change', category: 'events', shape: 'event', fn: 'onChange',
+    message: '✏️ when %1 changes', args: [THING('textbox')],
+    tooltip: 'Runs when someone types in a text box, ticks a checkbox, picks from a dropdown or moves a slider.',
+  },
+  {
+    type: 'zm_on_screen', category: 'events', shape: 'event', fn: 'onScreen',
+    message: '📱 when screen %1 opens', args: [{ kind: 'thing', name: 'SCREEN', default: 'Home', source: 'screen' }],
+    tooltip: 'Runs each time this screen is shown (and at the start for the first screen).',
+  },
+  {
+    type: 'zm_go_screen', category: 'events', shape: 'statement', fn: 'goToScreen',
+    message: '📱 go to screen %1', args: [{ kind: 'thing', name: 'SCREEN', default: 'Home', source: 'screen' }],
+    tooltip: 'Shows another screen (page) that you made in the Design view.',
+  },
+  {
     type: 'zm_is_pressed', category: 'events', shape: 'value', fn: 'isPressed', output: 'Boolean',
     message: '%1 is being pressed', args: [THING('up')],
     tooltip: 'True while a finger or the mouse is held down on this thing — perfect for on-screen arrow pictures.',
@@ -366,6 +381,11 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
       { kind: 'asset', name: 'ASSET', default: 'picture.png', media: 'image' },
     ],
     tooltip: 'Shows one of your project pictures (from Assets) on a thing.',
+  },
+  {
+    type: 'zm_set_value', category: 'looks', shape: 'statement', fn: 'setValue',
+    message: 'set value of %1 to %2', args: [THING('textbox'), str('VALUE', '')],
+    tooltip: 'Puts words in a text box, ticks a checkbox (true/false), picks a dropdown choice or moves a slider.',
   },
   {
     type: 'zm_set_size', category: 'looks', shape: 'statement', fn: 'setSize',

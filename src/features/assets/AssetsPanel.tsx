@@ -31,6 +31,58 @@ function uniqueName(name: string, taken: string[]): string {
   for (let i = 2; ; i++) if (!taken.includes(`${stem}-${i}${ext}`)) return `${stem}-${i}${ext}`;
 }
 
+/** Validate and store picked files in IndexedDB. Returns the new refs (caller adds them to the project). */
+export async function storeAssetFiles(project: Pick<Project, 'id' | 'assets'>, files: FileList | File[] | null): Promise<AssetRef[]> {
+  if (!files) return [];
+  const added: AssetRef[] = [];
+  const taken = project.assets.map((a) => a.name);
+  for (const f of Array.from(files)) {
+    const err = validateAsset(f);
+    if (err) {
+      toast(err, 'error');
+      continue;
+    }
+    const ref: AssetRef = { id: newId('asset'), name: uniqueName(cleanAssetName(f.name), [...taken, ...added.map((a) => a.name)]), mime: f.type, size: f.size };
+    try {
+      await putAsset(project.id, ref.id, f);
+      added.push(ref);
+    } catch (e) {
+      console.error('[ZinoMake] could not store asset', e);
+      toast(`“${f.name}” couldn’t be saved. Your browser may be out of storage space.`, 'error');
+    }
+  }
+  return added;
+}
+
+export const ACCEPT_ASSETS = [...IMAGE_TYPES, ...AUDIO_TYPES].join(',');
+export const ACCEPT_IMAGES = IMAGE_TYPES.join(',');
+
+/** Object URLs for a project's pictures (name -> url), revoked on change/unmount. */
+export function useAssetUrls(project: Pick<Project, 'assets'>): Record<string, string> {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    const made: string[] = [];
+    (async () => {
+      const next: Record<string, string> = {};
+      for (const a of project.assets) {
+        const blob = await getAsset(a.id).catch(() => undefined);
+        if (blob) {
+          const u = URL.createObjectURL(blob);
+          made.push(u);
+          next[a.name] = u;
+        }
+      }
+      if (alive) setUrls(next);
+    })();
+    return () => {
+      alive = false;
+      made.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [project.assets]);
+  return urls;
+}
+
 export function AssetsPanel({ project, onChange, onUse }: { project: Project; onChange: (fn: (p: Project) => Project) => void; onUse?: (asset: AssetRef) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -57,24 +109,7 @@ export function AssetsPanel({ project, onChange, onUse }: { project: Project; on
   }, [project.assets]);
 
   const add = async (files: FileList | null) => {
-    if (!files) return;
-    const added: AssetRef[] = [];
-    const taken = project.assets.map((a) => a.name);
-    for (const f of Array.from(files)) {
-      const err = validateAsset(f);
-      if (err) {
-        toast(err, 'error');
-        continue;
-      }
-      const ref: AssetRef = { id: newId('asset'), name: uniqueName(cleanAssetName(f.name), [...taken, ...added.map((a) => a.name)]), mime: f.type, size: f.size };
-      try {
-        await putAsset(project.id, ref.id, f);
-        added.push(ref);
-      } catch (e) {
-        console.error('[ZinoMake] could not store asset', e);
-        toast(`“${f.name}” couldn’t be saved. Your browser may be out of storage space.`, 'error');
-      }
-    }
+    const added = await storeAssetFiles(project, files);
     if (added.length) {
       onChange((p) => ({ ...p, assets: [...p.assets, ...added] }));
       toast(added.length === 1 ? `Added “${added[0].name}”.` : `Added ${added.length} files.`);

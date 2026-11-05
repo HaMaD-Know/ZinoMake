@@ -3,6 +3,8 @@
  * opens as fully editable blocks (verified by tests/unit/templates.test.ts).
  */
 import type { ProjectType } from '../model/project';
+import { starterDesign, type Design } from '../design/model';
+import { DESIGN_TEMPLATES } from './designTemplates';
 
 export interface Template {
   id: string;
@@ -17,6 +19,8 @@ export interface Template {
   js: string;
   /** "What can I do next?" ideas, in plain language. */
   nextIdeas: string[];
+  /** Visual design (Design view), saved as design.json. */
+  design?: Design;
 }
 
 const GAME_BASE_CSS = `body {
@@ -1447,11 +1451,12 @@ onClick("next", async () => {
 });
 `,
   },
+  ...DESIGN_TEMPLATES,
 ];
 
 /**
- * Blank starter per type: an empty page. Everything on it is made by blocks
- * (“Make things” category), so a new project never needs Code view.
+ * Blank starter per type: an empty page plus a small visual design (Design view), so a new
+ * project can be built by placing things and choosing what they do — no code needed.
  */
 export function blankTemplate(type: ProjectType): Template {
   const stage = type === 'game' || type === 'animation';
@@ -1463,38 +1468,34 @@ export function blankTemplate(type: ProjectType): Template {
     emoji: '✨',
     colors: ['#adb5bd', '#f1f3f5'],
     nextIdeas: stage
-      ? ['Open “Make things” and add a box, a circle or another character.', 'Use “when right arrow key is pressed” and “move player by x 10” to make it move.', 'Add “arrow buttons for phones” so it works on a tablet too.']
-      : ['Open “Make things” and add a typing box, more words or another button.', 'Use “set text of title to …” inside “when button is clicked”.', 'Use “🎨 set fill colour of …” to change colours.'],
-    html: stage
-      ? `<!doctype html>
+      ? ['In Design, add your own pictures to the stage and drag them into place.', 'In Blocks, use “when right arrow key is pressed” and “move player by x 10”.', 'Use “give player gravity” and “set speed of player” to make it jump.']
+      : ['In Design, add a nav bar and a second screen, then make a button “Go to a screen”.', 'Add a text box and use “what is typed in” in Blocks.', 'Change the main colour and font under Theme (click an empty part of the canvas).'],
+    design: starterDesign(type),
+    html: `<!doctype html>
 <html>
 <head><title>My project</title></head>
 <body>
-</body>
-</html>
-`
-      : `<!doctype html>
-<html>
-<head><title>My project</title></head>
-<body>
-  <main class="card" id="page"></main>
 </body>
 </html>
 `,
-    css: stage ? GAME_BASE_CSS : APP_BASE_CSS,
+    css: stage ? GAME_BASE_CSS : `body {
+  margin: 0;
+}
+`,
     js: stage
       ? `onStart(async () => {
-  setStage(360, 280, "skyblue");
-  addCharacter("player", "🐱", 160, 110, 48);
   say("Hello!");
 });
-`
-      : `onStart(async () => {
-  addTitle("title", "Hello!");
-  addButton("button", "Click me");
+
+onKey("ArrowRight", async () => {
+  move("player", 10, 0);
 });
 
-onClick("button", async () => {
+onKey("ArrowLeft", async () => {
+  move("player", -10, 0);
+});
+`
+      : `onClick("button", async () => {
   say("Hello!");
 });
 `,

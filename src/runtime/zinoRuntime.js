@@ -24,6 +24,8 @@
   var copyCount = 0;
   var pressedEls = [];      // elements under a finger / mouse button right now
   var messageHandlers = [];
+  var changeHandlers = [];
+  var screenHandlers = [];
 
   function post(type, data) {
     try {
@@ -169,6 +171,58 @@
     el.style.touchAction = 'none';
     el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } keyDown(k); });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { el.addEventListener(t, function () { keyUp(k); }); });
+  }
+
+
+  // ---------- designed things (Design view): screens, “When tapped” actions, inputs ----------
+  /** A designed text box is a <label> holding the real <input>; blocks use the label's name. */
+  function control(el) {
+    if (!el) return el;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return el;
+    var inner = el.querySelector && el.querySelector('input, select, textarea');
+    return inner || el;
+  }
+  function screens() { return Array.prototype.slice.call(document.querySelectorAll('.zm-screen[data-screen]')); }
+  var currentScreen = null;
+  function showScreen(name, announce) {
+    var list = screens();
+    var target = null;
+    list.forEach(function (s) { if (s.getAttribute('data-screen') === name) target = s; });
+    if (!target) {
+      if (!reportedMissing['screen:' + name]) {
+        reportedMissing['screen:' + name] = true;
+        post('error', { message: 'There’s no screen called “' + name + '”. Check the name in the Design view.', line: null });
+      }
+      return;
+    }
+    list.forEach(function (s) { s.hidden = s !== target; });
+    currentScreen = name;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-zm-tap="screen"]'), function (b) {
+      b.classList.toggle('zm-active', b.getAttribute('data-zm-value') === name);
+    });
+    if (announce) { try { window.scrollTo(0, 0); } catch (e) { /* ignore */ } }
+    if (announce) screenHandlers.forEach(function (h) { if (h.name === name) run(h.fn); });
+  }
+  function tapAction(el) {
+    var kind = el.getAttribute('data-zm-tap'), v = el.getAttribute('data-zm-value') || '';
+    if (kind === 'screen') showScreen(v, true);
+    else if (kind === 'say') api.say(v);
+    else if (kind === 'sound') api.playSound(v || 'beep');
+    else if (kind === 'link') {
+      var w = null;
+      try { w = window.open(v, '_blank', 'noopener'); } catch (e) { w = null; }
+      if (!w) post('log', { level: 'warn', message: 'Links open in your exported web page. The preview stays offline to keep you safe.' });
+    }
+  }
+  function changed(e) {
+    if (!running) return;
+    var t = e.target;
+    var isPick = t && (t.type === 'checkbox' || t.tagName === 'SELECT');
+    if ((e.type === 'change') !== !!isPick) return; // text and sliders: every change; ticks and dropdowns: once
+    var under = chain(t);
+    changeHandlers.forEach(function (h) {
+      for (var i = 0; i < under.length; i++) if (isThing(under[i], h.name)) { run(h.fn); return; }
+    });
   }
 
   // ---------- groups: a thing plus all its copies ----------
@@ -518,11 +572,22 @@
     },
     join: function (a, b) { return text(a) + text(b); },
     getValue: function (target) {
-      var el = find(target); if (!el) return '';
+      var el = control(find(target)); if (!el) return '';
+      if (el.type === 'checkbox') return !!el.checked;
       var v = 'value' in el ? el.value : el.textContent;
       var s = String(v == null ? '' : v);
       return s.trim() !== '' && !isNaN(Number(s)) ? Number(s) : s;
     },
+    setValue: function (target, value) {
+      checkRunning();
+      var el = control(find(target)); if (!el) return;
+      if (el.type === 'checkbox') el.checked = value === true || value === 'true' || value === 1;
+      else if ('value' in el && el.tagName !== 'BUTTON' && el.tagName !== 'LI') el.value = text(value);
+      else el.textContent = text(value);
+    },
+    onChange: function (target, fn) { changeHandlers.push({ name: String(target), fn: fn }); },
+    goToScreen: function (name) { checkRunning(); showScreen(String(name), true); },
+    onScreen: function (name, fn) { screenHandlers.push({ name: String(name), fn: fn }); },
     isKeyDown: function (key) { return !!keysDown[String(key)]; },
     onStart: function (fn) { startHandlers.push(fn); },
     onClick: function (target, fn) {
@@ -587,9 +652,18 @@
     for (var el = start; el && el.nodeType === 1; el = el.parentElement) list.push(el);
     return list;
   }
+  document.addEventListener('input', changed);
+  document.addEventListener('change', changed);
   document.addEventListener('click', function (e) {
     if (!running) return;
     var under = chain(e.target);
+    for (var t = 0; t < under.length; t++) {
+      if (under[t].hasAttribute && under[t].hasAttribute('data-zm-tap')) {
+        if (under[t].tagName === 'A') e.preventDefault();
+        tapAction(under[t]);
+        break;
+      }
+    }
     clickHandlers.forEach(function (h) {
       for (var i = 0; i < under.length; i++) if (isThing(under[i], h.name)) { run(h.fn); return; }
     });
@@ -627,8 +701,11 @@
     start: function () {
       bindTouchKeys();
       post('started', {});
+      var first = screens()[0];
+      if (first) showScreen(first.getAttribute('data-screen'), false);
       requestAnimationFrame(tick);
       startHandlers.forEach(function (fn) { run(fn); });
+      if (currentScreen) screenHandlers.forEach(function (h) { if (h.name === currentScreen) run(h.fn); });
       // Things can be made by blocks after Play, so only warn about unknown click names a moment later.
       timers.push(setTimeout(function () { if (running) checkClickTargets(); }, 1500));
     }

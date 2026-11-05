@@ -76,7 +76,7 @@ await step('create flow: choose Game → template → Start Creating opens the e
   await page.getByTestId('template-game-click-target').click();
   await page.locator('#pname').fill('E2E Target');
   await page.getByTestId('start-creating').click();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   assert(/#\/p\//.test(page.url()), 'not in editor');
   assert((await page.locator('.blocklyDraggable').count()) > 10, 'template blocks not loaded');
   const skip = page.getByRole('button', { name: 'Skip tour' });
@@ -170,7 +170,7 @@ await step('refresh recovers the project exactly', async () => {
   await page.getByTestId('view-code').click();
   const before = await getCode();
   await page.reload();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByTestId('view-code').click();
   await page.locator('.cm-content').waitFor();
   const after = await getCode();
@@ -190,7 +190,7 @@ await step('files: create a folder and a file inside it; it survives a refresh',
   await page.waitForTimeout(300);
   await waitSaved();
   await page.reload();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByRole('button', { name: 'Files', exact: true }).first().click();
   assert(await page.getByRole('treeitem', { name: /scripts/ }).isVisible(), 'folder missing after refresh');
   await page.locator('.tree-item', { hasText: 'helpers.js' }).waitFor({ timeout: 3000 });
@@ -213,7 +213,7 @@ await step('import the exported ZIP from the dashboard (keeps both)', async () =
   await page.getByRole('button', { name: 'Keep both' }).click();
   await page.getByText('E2E Target (imported)').first().waitFor({ timeout: 5000 });
   await page.getByRole('link', { name: 'Open E2E Target (imported)' }).first().click();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByTestId('view-code').click();
   await page.locator('.cm-content').waitFor();
   assert((await getCode()).includes('const colors'), 'imported code differs');
@@ -242,7 +242,7 @@ await step('dashboard: folder, move, rename, duplicate, search', async () => {
 await step('runaway loop is stopped with a friendly message', async () => {
   await page.goto(base + '#/new?type=app&template=blank-app');
   await page.getByTestId('start-creating').click();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByTestId('view-code').click();
   await page.locator('.cm-content').waitFor();
   await setCode('onStart(async () => {\n  while (true) {\n  }\n});\n');
@@ -253,7 +253,7 @@ await step('runaway loop is stopped with a friendly message', async () => {
 await step('assets: add a picture and show it with a block', async () => {
   await page.goto(base + '#/new?type=game&template=blank-game');
   await page.getByTestId('start-creating').click();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByRole('button', { name: 'Pictures and sounds' }).click();
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.locator('input[aria-label="Add pictures or sounds"]').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: png });
@@ -274,7 +274,7 @@ await step('two tabs: a stale tab never overwrites newer work', async () => {
   const url = page.url();
   const other = await context.newPage();
   await other.goto(url);
-  await other.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await other.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   // Edit and save in the first tab.
   await page.getByTestId('stop').click().catch(() => {});
   await setCode('onStart(async () => {\n  say("first tab");\n});\n');
@@ -299,7 +299,7 @@ await step('phone layout: single panel, bottom view switcher, no horizontal scro
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'home scrolls horizontally');
   await page.screenshot({ path: 'tests/e2e/screenshots/phone-home.png' });
   await page.getByRole('link', { name: 'Open E2E Target', exact: true }).first().click();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   const nav = page.getByRole('navigation', { name: 'Editor views' });
   assert(await nav.isVisible(), 'mobile nav hidden');
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'editor scrolls horizontally');
@@ -315,7 +315,7 @@ await step('phone layout: single panel, bottom view switcher, no horizontal scro
 await step('tablet layout: blocks and preview side by side', async () => {
   await page.setViewportSize({ width: 820, height: 1180 });
   await page.reload();
-  await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+  await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
   await page.getByTestId('play').click();
   await frame().locator('#score').waitFor({ timeout: 8000 });
   const blocksBox = await page.locator('.blocks-wrap').boundingBox();
@@ -323,6 +323,37 @@ await step('tablet layout: blocks and preview side by side', async () => {
   assert(blocksBox && previewBox && blocksBox.x < previewBox.x && blocksBox.width > 300, 'tablet layout wrong');
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'tablet scrolls horizontally');
   await page.screenshot({ path: 'tests/e2e/screenshots/tablet.png' });
+});
+
+await step('design view: change a button, add a screen, tap goes there with no code', async () => {
+  await page.goto(base + '#/new?type=app&template=blank-app');
+  await page.getByTestId('start-creating').click();
+  await page.getByTestId('design-canvas').waitFor({ timeout: 15000 });
+  await page.waitForTimeout(600);
+  const canvas = page.frameLocator('[data-testid=design-canvas]');
+  await canvas.locator('#button').click();
+  assert((await page.getByTestId('dz-name').inputValue()) === 'button', 'button not selected');
+  await page.locator('.dz-right .dz-field').filter({ hasText: 'Words' }).locator('input').fill('Next page');
+  await page.getByTestId('add-screen').click();
+  await page.getByRole('dialog').locator('input').fill('Second');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click();
+  await page.getByTestId('add-title').click();
+  await page.locator('.dz-screens').getByRole('tab', { name: /Home/ }).click();
+  await canvas.locator('#button').click();
+  await page.locator('.dz-right .dz-field').filter({ hasText: 'Do this' }).locator('select').selectOption('screen');
+  await page.locator('.dz-right .dz-field').filter({ hasText: /^Screen/ }).locator('select').selectOption('Second');
+  await waitSaved();
+  await page.getByTestId('play').click();
+  await frame().locator('#button').waitFor({ timeout: 8000 });
+  assert((await frame().locator('#button').textContent()) === 'Next page', 'button words not changed');
+  await frame().locator('#button').click();
+  await page.waitForTimeout(300);
+  assert((await frame().locator('.zm-screen:not([hidden])').getAttribute('data-screen')) === 'Second', 'did not go to the screen');
+  await page.getByTestId('stop').click();
+  await page.reload();
+  await page.getByTestId('design-canvas').waitFor({ timeout: 15000 });
+  await page.waitForTimeout(600);
+  assert((await page.frameLocator('[data-testid=design-canvas]').locator('#button').textContent()) === 'Next page', 'design not saved');
 });
 
 await step('every template runs without errors', async () => {
@@ -333,7 +364,7 @@ await step('every template runs without errors', async () => {
     const type = id.split('-')[0] === 'web' ? 'website' : id.split('-')[0] === 'anim' ? 'animation' : id.split('-')[0];
     await page.goto(`${base}#/new?type=${type}&template=${id}`);
     await page.getByTestId('start-creating').click();
-    await page.waitForSelector('.blocklySvg', { timeout: 15000 });
+    await page.waitForSelector('.blocklySvg', { state: 'attached', timeout: 15000 });
     await page.getByTestId('play').click();
     await page.waitForTimeout(1200);
     const errs = await page.locator('.console-row.error').allTextContents();

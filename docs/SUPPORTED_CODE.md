@@ -31,6 +31,8 @@ JavaScript can be turned into blocks.
 | `setStage(w, h, colour)`, `addCharacter("name", "🐱", x, y, size)`, `addBox("name", x, y, w, h, colour)`, `addCircle("name", x, y, size, colour)`, `addPicture("name", "file.png", x, y, size)`, `addLabel("name", text, x, y, size)`, `addTitle("name", text)`, `addParagraph("name", text)`, `addButton("name", text)`, `addInput("name", hint)`, `addArrowButtons()`, `removeThing("name")` | the matching **Make things** block (creates things without editing `index.html`) |
 | `setSpeed("id", vx, vy)`, `setGravity("id", g)`, `bounceOnEdges("id")`, `setAngle("id", deg)`, `makeCopy("id", x, y)`, `removeCopies("id")`, `sendMessage("text")` | the matching speed / gravity / copy / message block |
 | `onMessage("text", async () => { … });` | 📣 when I get message |
+| `onChange("id", async () => { … });`, `onScreen("Home", async () => { … });` | ✏️ when … changes, 📱 when screen … opens |
+| `goToScreen("Home")`, `setValue("id", value)` | 📱 go to screen, set value of |
 | `setSize("id", w, h)`, `setStyle("id", "fill", value)` (styles: fill, textColor, textSize, roundness, border, seeThrough, layer, font), `turnBy("id", degrees)`, `stop()` | the matching action block |
 | `// a comment` between statements | 📝 note |
 

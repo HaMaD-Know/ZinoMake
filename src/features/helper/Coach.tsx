@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 const STEPS = [
-  { title: '👋 Welcome to the editor', text: 'Your project already works! These coloured blocks are its instructions.' },
-  { title: '▶ Press Play', text: 'Press the green Play button to see your result. Press Stop to end it.' },
-  { title: '🧱 Change something', text: 'Pick a category on the left and drag a block into a “when…” block. Or tap “Add block”.' },
+  { title: '👋 Welcome to the editor', text: 'Your project already works! Press the green Play button to see it. Press Stop to end it.' },
+  { title: '🎨 Design it', text: 'In Design, add buttons, pictures, text boxes and screens. Click anything to change its words, colours and size, and choose what it does when tapped.' },
+  { title: '🧱 Make it smart', text: 'In Blocks, snap coloured blocks together for games and logic: “when … is clicked”, movement, scores and more.' },
   { title: '</> Peek at the code', text: 'Open Code to see the real JavaScript your blocks make. You never have to use it.' },
 ];
 

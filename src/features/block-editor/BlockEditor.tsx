@@ -14,6 +14,8 @@ export interface BlockEditorHandle {
   /** Insert a block from toolbox JSON next to the selection (keyboard / touch alternative to dragging). */
   insert(item: Record<string, unknown>): boolean;
   deleteSelected(): boolean;
+  /** Select and scroll to the first top block of this type whose field has this value. */
+  reveal(type: string, field: string, value: string): void;
   resize(): void;
   zoom(delta: number): void;
   center(): void;
@@ -31,6 +33,8 @@ interface Props {
   thingNames?: string[];
   /** Uploaded files, offered in the picture and sound dropdowns. */
   assets?: { name: string; mime: string }[];
+  /** Screen names from the Design view. */
+  screens?: string[];
 }
 
 async function createVariable(ws: Blockly.WorkspaceSvg) {
@@ -53,12 +57,13 @@ async function createVariable(ws: Blockly.WorkspaceSvg) {
 }
 
 export const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor(
-  { type, workspace, reloadToken, onChange, onSelectionChange, onEmptyChange, visible, thingNames, assets },
+  { type, workspace, reloadToken, onChange, onSelectionChange, onEmptyChange, visible, thingNames, assets, screens },
   ref,
 ) {
   zmChoices.things = [...(thingNames ?? [])].sort((a, b) => a.localeCompare(b));
   zmChoices.images = (assets ?? []).filter((a) => a.mime.startsWith('image/')).map((a) => a.name);
   zmChoices.sounds = (assets ?? []).filter((a) => a.mime.startsWith('audio/')).map((a) => a.name);
+  zmChoices.screens = screens ?? [];
   const host = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Blockly.WorkspaceSvg | null>(null);
   const loading = useRef(false);
@@ -164,6 +169,15 @@ export const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEd
     resize: () => wsRef.current && Blockly.svgResize(wsRef.current),
     zoom: (d) => wsRef.current?.zoomCenter(d),
     center: () => wsRef.current?.scrollCenter(),
+    reveal: (type, field, value) => {
+      const ws = wsRef.current;
+      if (!ws) return;
+      const b = ws.getBlocksByType(type, false).find((x) => String(x.getFieldValue(field)) === value) as Blockly.BlockSvg | undefined;
+      if (b) {
+        b.select();
+        ws.centerOnBlock(b.id);
+      }
+    },
     deleteSelected: () => {
       const sel = Blockly.getSelected();
       if (sel && sel instanceof Blockly.BlockSvg && sel.isDeletable()) {
