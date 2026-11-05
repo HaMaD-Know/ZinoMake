@@ -80,10 +80,15 @@ function styleOf(n: DesignNode, free: boolean): string {
     add('justify-content', FLEX[String(p.justify)] ?? '');
   }
   if (n.type === 'row' && p.wrap === false) st.push('flex-wrap:nowrap');
-  if (n.type === 'stage') {
+  if (n.type === 'stage' || n.type === 'section' || n.type === 'card') {
     const img = assetUrl(p.image);
     if (img) st.push(`background-image:url("${img}")`, 'background-size:cover', 'background-position:center');
   }
+  if (n.type === 'grid') {
+    const cols = Math.max(1, Math.min(8, Math.round(num(p.columns) ?? 3)));
+    st.push(`--zm-cols:${cols}`);
+  }
+  if (n.type === 'image' && p.round) st.push('border-radius:50%', 'aspect-ratio:1');
   if (n.type === 'image') add('object-fit', ['contain', 'cover', 'fill'].includes(String(p.fit)) ? String(p.fit) : 'contain');
   if (p.hidden) st.push('display:none');
   return st.join(';');
@@ -137,8 +142,25 @@ function node(n: DesignNode, ctx: Ctx, free: boolean): string {
     }
     case 'row':
     case 'column':
+    case 'grid':
     case 'card':
       return `<div ${a()}>${children(n, ctx)}</div>`;
+    case 'badge':
+      return `<span ${a()}>${esc(p.text)}</span>`;
+    case 'faq':
+      return `<details ${a()}${p.open ? ' open' : ''}><summary>${esc(p.text)}</summary><p>${esc(p.answer).replace(/\n/g, '<br>')}</p></details>`;
+    case 'table': {
+      const rows = String(p.rows ?? '').split('\n').map((r) => r.split(',').map((c) => c.trim())).filter((r) => r.some(Boolean));
+      const [head, ...body] = rows;
+      const th = head ? `<thead><tr>${head.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : '';
+      const tb = `<tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+      return `<div ${a()}><table>${th}${tb}</table></div>`;
+    }
+    case 'progress': {
+      const max = Math.max(1, num(p.max) ?? 100);
+      const val = Math.max(0, Math.min(max, num(p.value) ?? 0));
+      return `<label ${a('zm-field')}>${label(p.label)}<progress max="${max}" value="${val}"></progress></label>`;
+    }
     case 'stage':
       return `<div ${a('stage')}>${children(n, ctx)}</div>`;
     case 'spacer':
@@ -170,7 +192,7 @@ function node(n: DesignNode, ctx: Ctx, free: boolean): string {
     case 'button':
       return `<button type="button" ${a(`zm-btn-${['primary', 'soft', 'outline', 'plain'].includes(String(p.variant)) ? p.variant : 'primary'}`)}>${esc(p.text)}</button>`;
     case 'input': {
-      const t = ['text', 'number', 'email', 'password'].includes(String(p.inputType)) ? String(p.inputType) : 'text';
+      const t = ['text', 'number', 'email', 'password', 'tel', 'date', 'time', 'color'].includes(String(p.inputType)) ? String(p.inputType) : 'text';
       return `<label ${a('zm-field')}>${label(p.label)}<input type="${t}" placeholder="${esc(p.placeholder ?? '')}"></label>`;
     }
     case 'textarea':
@@ -265,8 +287,21 @@ img.zm-image.zm-free{max-width:none}
 .zm-navlinks{display:flex;gap:4px;flex-wrap:wrap}
 .zm-navlink{font:inherit;font-weight:700;color:inherit;background:transparent;border:none;padding:8px 12px;border-radius:min(var(--zm-r),10px);cursor:pointer}
 .zm-navlink:hover{background:rgba(255,255,255,.14)}.zm-navlink.zm-active{background:rgba(255,255,255,.24)}
+.zm-grid{display:grid;grid-template-columns:repeat(var(--zm-cols,3),minmax(0,1fr));gap:16px;width:100%;align-items:stretch}
+.zm-badge{display:inline-block;align-self:flex-start;background:color-mix(in srgb,var(--zm-primary) 15%,#fff);color:var(--zm-primary);font-weight:800;font-size:13px;padding:4px 10px;border-radius:999px;letter-spacing:.02em}
+.zm-inner>.zm-badge,.zm-section .zm-badge{align-self:auto}
+.zm-faq{width:100%;border:1.5px solid #e3e1db;border-radius:min(var(--zm-r),14px);padding:0 16px;background:#fff;color:#1d2433;text-align:left}
+.zm-faq summary{cursor:pointer;font-weight:800;padding:14px 0;list-style-position:outside}
+.zm-faq p{margin:0 0 14px;line-height:1.6}
+.zm-table{width:100%;overflow-x:auto}
+.zm-table table{width:100%;border-collapse:collapse;text-align:left;font-size:15px;background:#fff;color:#1d2433;border-radius:12px;overflow:hidden}
+.zm-table th{background:color-mix(in srgb,var(--zm-primary) 12%,#fff);font-weight:800}
+.zm-table th,.zm-table td{padding:10px 12px;border-bottom:1px solid #ecebe6}
+.zm-field progress{width:100%;height:12px;accent-color:var(--zm-primary)}
+.zm-list li.zm-done{text-decoration:line-through;opacity:.6}
 .zm-tappable{cursor:pointer}
-@media (max-width:600px){.zm-section{padding:28px 16px}.zm-row>.zm-column{min-width:100%}}
+@media (max-width:900px){.zm-grid{grid-template-columns:repeat(min(var(--zm-cols,3),2),minmax(0,1fr))}}
+@media (max-width:600px){.zm-section{padding:28px 16px}.zm-row>.zm-column{min-width:100%}.zm-grid{grid-template-columns:1fr}}
 `;
 }
 

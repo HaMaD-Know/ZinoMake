@@ -25,6 +25,14 @@
   var pressedEls = [];      // elements under a finger / mouse button right now
   var messageHandlers = [];
   var changeHandlers = [];
+  var saved = window.__ZM_SAVED || {};
+  // In the ZinoMake preview, saved values come from (and go back to) ZinoMake; in an exported page they live in localStorage.
+  var standalone = !window.__ZM_SAVED && (function () { try { return window.parent === window; } catch (e) { return false; } })();
+  if (standalone) { try { saved = JSON.parse(localStorage.getItem('zinomake-data') || '{}') || {}; } catch (e) { saved = {}; } }
+  function persist(key, value) {
+    if (standalone) { try { localStorage.setItem('zinomake-data', JSON.stringify(saved)); } catch (e) { /* storage full or blocked */ } }
+    else post('save', { key: key, value: value === undefined ? null : value });
+  }
   var screenHandlers = [];
 
   function post(type, data) {
@@ -178,8 +186,8 @@
   /** A designed text box is a <label> holding the real <input>; blocks use the label's name. */
   function control(el) {
     if (!el) return el;
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return el;
-    var inner = el.querySelector && el.querySelector('input, select, textarea');
+    if (/^(INPUT|SELECT|TEXTAREA|PROGRESS)$/.test(el.tagName)) return el;
+    var inner = el.querySelector && el.querySelector('input, select, textarea, progress');
     return inner || el;
   }
   function screens() { return Array.prototype.slice.call(document.querySelectorAll('.zm-screen[data-screen]')); }
@@ -296,6 +304,45 @@
   }
 
   var api = {
+    saveValue: function (key, value) {
+      checkRunning();
+      var k = String(key).slice(0, 100);
+      var v = typeof value === 'number' || typeof value === 'boolean' ? value : text(value).slice(0, 20000);
+      saved[k] = v;
+      persist(k, v);
+    },
+    loadValue: function (key) { var v = saved[String(key)]; return v === undefined || v === null ? '' : v; },
+    forgetSaved: function () {
+      checkRunning();
+      var keys = Object.keys(saved);
+      saved = {};
+      if (standalone) persist(); else keys.forEach(function (k) { post('save', { key: k, value: null }); });
+    },
+    addItem: function (target, value) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var li = document.createElement(/^(UL|OL)$/.test(el.tagName) ? 'li' : 'div');
+      li.textContent = text(value);
+      el.appendChild(li);
+    },
+    removeItem: function (target, index) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var kids = el.children, i = Math.round(num(index, 1)) - 1;
+      if (i >= 0 && i < kids.length) kids[i].remove();
+    },
+    clearItems: function (target) { checkRunning(); var el = find(target); if (el) el.innerHTML = ''; },
+    countItems: function (target) { var el = find(target); return el ? el.children.length : 0; },
+    itemsOf: function (target) {
+      var el = find(target); if (!el) return '';
+      return Array.prototype.map.call(el.children, function (c) { return c.textContent; }).join('\n');
+    },
+    setItems: function (target, value) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      el.innerHTML = '';
+      text(value).split('\n').forEach(function (line) { if (line.trim()) api.addItem(target, line); });
+    },
     setSpeed: function (target, vx, vy) {
       checkRunning();
       var el = find(target); if (!el) return;

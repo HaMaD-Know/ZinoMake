@@ -33,6 +33,8 @@ JavaScript can be turned into blocks.
 | `onMessage("text", async () => { … });` | 📣 when I get message |
 | `onChange("id", async () => { … });`, `onScreen("Home", async () => { … });` | ✏️ when … changes, 📱 when screen … opens |
 | `goToScreen("Home")`, `setValue("id", value)` | 📱 go to screen, set value of |
+| `saveValue("key", v)`, `forgetSaved()`, `addItem("list", v)`, `removeItem("list", n)`, `clearItems("list")`, `setItems("list", text)` | Save & lists blocks |
+| values `loadValue("key")`, `countItems("list")`, `itemsOf("list")` | saved …, number of items in, all items in |
 | `setSize("id", w, h)`, `setStyle("id", "fill", value)` (styles: fill, textColor, textSize, roundness, border, seeThrough, layer, font), `turnBy("id", degrees)`, `stop()` | the matching action block |
 | `// a comment` between statements | 📝 note |
 

@@ -13,9 +13,9 @@ export const DESIGN_FILE = 'design.json';
 export const DESIGN_VERSION = 1;
 
 export type CompType =
-  | 'navbar' | 'section' | 'row' | 'column' | 'card' | 'stage' | 'spacer' | 'divider'
-  | 'title' | 'text' | 'list' | 'link'
-  | 'image' | 'character' | 'shape'
+  | 'navbar' | 'section' | 'row' | 'column' | 'grid' | 'card' | 'stage' | 'spacer' | 'divider'
+  | 'title' | 'text' | 'list' | 'link' | 'badge' | 'faq' | 'table'
+  | 'image' | 'character' | 'shape' | 'progress'
   | 'button' | 'input' | 'textarea' | 'checkbox' | 'select' | 'slider';
 
 export type PropValue = string | number | boolean;
@@ -69,6 +69,8 @@ export interface CompSpec {
   label: string;
   icon: string;
   group: 'Layout' | 'Text' | 'Pictures' | 'Controls';
+  /** Lays its children out side by side (used to decide drop positions). */
+  horizontal?: boolean;
   /** Can hold other components. */
   container?: boolean;
   /** Children are placed freely with x/y (a game stage). */
@@ -103,13 +105,14 @@ export const COMPONENTS: CompSpec[] = [
     defaults: { width: 'wide', padding: 40, gap: 16, align: 'center', textAlign: 'center' },
     fields: [
       { key: 'width', label: 'Content width', kind: 'select', options: [['Full', 'full'], ['Wide', 'wide'], ['Narrow', 'narrow']] },
+      { key: 'image', label: 'Background picture', kind: 'image' },
       { key: 'align', label: 'Line up items', kind: 'select', options: ITEMS_ALIGN },
       { key: 'textAlign', label: 'Text', kind: 'select', options: ALIGN },
     ],
     help: 'A band across the page (like a “hero” or “features” area). Put other things inside it.',
   },
   {
-    type: 'row', label: 'Row', icon: '⇹', group: 'Layout', container: true,
+    type: 'row', label: 'Row', icon: '⇹', group: 'Layout', container: true, horizontal: true,
     defaults: { gap: 12, align: 'center', justify: 'start', wrap: true },
     fields: [
       { key: 'align', label: 'Line up (up/down)', kind: 'select', options: ITEMS_ALIGN },
@@ -128,9 +131,18 @@ export const COMPONENTS: CompSpec[] = [
     help: 'Puts things one under another. Put two columns in a row for a two-column layout.',
   },
   {
+    type: 'grid', label: 'Grid', icon: '▦', group: 'Layout', container: true, horizontal: true,
+    defaults: { columns: 3, gap: 16 },
+    fields: [{ key: 'columns', label: 'Columns (on big screens)', kind: 'number', hint: 'On phones the grid shows fewer columns by itself.' }],
+    help: 'Puts things in neat columns — great for cards, products and photo galleries.',
+  },
+  {
     type: 'card', label: 'Card', icon: '🗂', group: 'Layout', container: true,
     defaults: { padding: 20, gap: 10, shadow: 'soft', bg: '#ffffff', radius: 16, align: 'stretch' },
-    fields: [{ key: 'align', label: 'Line up items', kind: 'select', options: ITEMS_ALIGN }],
+    fields: [
+      { key: 'align', label: 'Line up items', kind: 'select', options: ITEMS_ALIGN },
+      { key: 'image', label: 'Background picture', kind: 'image' },
+    ],
     help: 'A box with a soft shadow, great for products, profiles and settings.',
   },
   {
@@ -139,6 +151,7 @@ export const COMPONENTS: CompSpec[] = [
     fields: [{ key: 'image', label: 'Background picture', kind: 'image' }],
     help: 'A play area for games and animations. Drag things to place them anywhere on it.',
   },
+  // (grid is defined above with the other boxes)
   { type: 'spacer', label: 'Space', icon: '↕', group: 'Layout', defaults: { height: '32' }, fields: [], help: 'Empty space between things.' },
   { type: 'divider', label: 'Line', icon: '―', group: 'Layout', defaults: { color: '#d9d6cf' }, fields: [], help: 'A thin line to separate parts.' },
   // Text
@@ -167,6 +180,28 @@ export const COMPONENTS: CompSpec[] = [
     help: 'A bulleted or numbered list.',
   },
   {
+    type: 'badge', label: 'Badge', icon: '🏷', group: 'Text', tappable: true,
+    defaults: { text: 'New' },
+    fields: [{ key: 'text', label: 'Words', kind: 'text' }],
+    help: 'A small coloured label, like “New”, “Sale” or “Pro”.',
+  },
+  {
+    type: 'faq', label: 'Question', icon: '❓', group: 'Text',
+    defaults: { text: 'How does it work?', answer: 'Tap a question to see its answer.', open: false },
+    fields: [
+      { key: 'text', label: 'Question', kind: 'text' },
+      { key: 'answer', label: 'Answer', kind: 'longtext' },
+      { key: 'open', label: 'Open at the start', kind: 'toggle' },
+    ],
+    help: 'A question that opens to show its answer (for FAQ pages).',
+  },
+  {
+    type: 'table', label: 'Table', icon: '▤', group: 'Text',
+    defaults: { rows: 'Plan, Price, Support\nFree, $0, Email\nPro, $9, Chat' },
+    fields: [{ key: 'rows', label: 'Rows (one per line, cells separated by commas; the first line is the heading)', kind: 'longtext' }],
+    help: 'A simple table, like a price list or a timetable.',
+  },
+  {
     type: 'link', label: 'Link', icon: '🔗', group: 'Text', tappable: true,
     defaults: { text: 'Visit my site', url: 'https://example.com' },
     fields: [
@@ -182,6 +217,7 @@ export const COMPONENTS: CompSpec[] = [
     fields: [
       { key: 'image', label: 'Picture', kind: 'image' },
       { key: 'fit', label: 'Fit', kind: 'select', options: [['Show all of it', 'contain'], ['Fill the box', 'cover'], ['Stretch', 'fill']] },
+      { key: 'round', label: 'Round (for profile pictures)', kind: 'toggle' },
       { key: 'alt', label: 'Describe it (for screen readers)', kind: 'text' },
     ],
     help: 'One of your pictures from Pictures & sounds.',
@@ -197,6 +233,16 @@ export const COMPONENTS: CompSpec[] = [
     defaults: { shape: 'box', bg: '#ff6b6b', width: '60', height: '60' },
     fields: [{ key: 'shape', label: 'Shape', kind: 'select', options: [['Box', 'box'], ['Circle', 'circle'], ['Pill', 'pill']] }],
     help: 'A coloured box or circle: walls, platforms, coins, decorations.',
+  },
+  {
+    type: 'progress', label: 'Progress bar', icon: '▰', group: 'Pictures',
+    defaults: { value: 60, max: 100, label: '' },
+    fields: [
+      { key: 'label', label: 'Label above it', kind: 'text' },
+      { key: 'value', label: 'How full', kind: 'number' },
+      { key: 'max', label: 'Full at', kind: 'number' },
+    ],
+    help: 'Shows how far along something is. Change it with “set value of”.',
   },
   // Controls
   {
@@ -214,7 +260,7 @@ export const COMPONENTS: CompSpec[] = [
     fields: [
       { key: 'label', label: 'Label above it', kind: 'text' },
       { key: 'placeholder', label: 'Hint inside it', kind: 'text' },
-      { key: 'inputType', label: 'Kind', kind: 'select', options: [['Text', 'text'], ['Number', 'number'], ['Email', 'email'], ['Password', 'password']] },
+      { key: 'inputType', label: 'Kind', kind: 'select', options: [['Text', 'text'], ['Number', 'number'], ['Email', 'email'], ['Password', 'password'], ['Phone', 'tel'], ['Date', 'date'], ['Time', 'time'], ['Colour', 'color']] },
     ],
     help: 'A box people type into. Read it with “what is typed in”.',
   },
@@ -481,6 +527,68 @@ function placeInFree(container: DesignNode, node: DesignNode): void {
   if (node.type === 'image' && !node.props.width) node.props.width = '64';
 }
 
+/** The list a node would go into: a container's children, or the screen's top level. */
+function listFor(d: Design, screenId: string, parentId: string | null): { list: DesignNode[]; parent: DesignNode | null } | null {
+  const screen = d.screens.find((s) => s.id === screenId);
+  if (!screen) return null;
+  if (!parentId) return { list: screen.nodes, parent: null };
+  const loc = locate(d, parentId);
+  if (!loc || !loc.node.children || loc.screen.id !== screenId) return null;
+  return { list: loc.node.children, parent: loc.node };
+}
+
+/** Insert at an exact place (used by drag and drop). `at` is {x, y} for a stage. */
+export function insertAt(d: Design, screenId: string, node: DesignNode, parentId: string | null, index: number, at?: { x: number; y: number }): Design {
+  const next = clone(d);
+  const target = listFor(next, screenId, parentId);
+  if (!target) return d;
+  if (target.parent && COMPONENT_BY_TYPE.get(target.parent.type)?.free && at) {
+    node.props.x = Math.round(at.x);
+    node.props.y = Math.round(at.y);
+  } else if (!target.parent || !COMPONENT_BY_TYPE.get(target.parent.type)?.free) {
+    delete node.props.x;
+    delete node.props.y;
+  }
+  if (target.parent) placeInFree(target.parent, node);
+  target.list.splice(Math.max(0, Math.min(index, target.list.length)), 0, node);
+  return next;
+}
+
+/** Move an existing node to an exact place. Refuses to put a box inside itself. */
+export function moveTo(d: Design, id: string, parentId: string | null, index: number, at?: { x: number; y: number }): Design {
+  const loc = locate(d, id);
+  if (!loc) return d;
+  if (parentId) {
+    let inside = false;
+    walk([loc.node], (n) => { if (n.id === parentId) inside = true; });
+    if (inside) return d;
+  }
+  const sameList = (loc.parent?.id ?? null) === parentId;
+  const removed = removeNode(d, id);
+  const node = clone(loc.node);
+  const idx = sameList && index > loc.index ? index - 1 : index;
+  return insertAt(removed, loc.screen.id, node, parentId, idx, at);
+}
+
+/**
+ * ↑ / ↓: swap with the neighbour; at the start/end of a box, step out of it (before/after the box).
+ * Returns the same design when there is nowhere to go.
+ */
+export function stepNode(d: Design, id: string, delta: -1 | 1): Design {
+  const loc = locate(d, id);
+  if (!loc) return d;
+  const to = loc.index + delta;
+  if (to >= 0 && to < loc.list.length) return moveNode(d, id, delta);
+  if (!loc.parent) return d;
+  const outer = locate(d, loc.parent.id);
+  if (!outer) return d;
+  return moveTo(d, id, outer.parent?.id ?? null, outer.index + (delta > 0 ? 1 : 0));
+}
+
+export function canStep(d: Design, id: string, delta: -1 | 1): boolean {
+  return stepNode(d, id, delta) !== d;
+}
+
 export function updateNode(d: Design, id: string, fn: (n: DesignNode) => void): Design {
   const next = clone(d);
   const loc = locate(next, id);
@@ -562,19 +670,9 @@ export function firstStage(screen: Screen): DesignNode | null {
 
 // ------------------------------------------------------------------ starter designs
 
+/** A blank project's design: an empty screen (games and animations get an empty stage to play on). */
 export function starterDesign(type: ProjectType): Design {
   const d = emptyDesign();
-  const home = d.screens[0];
-  if (type === 'game' || type === 'animation') {
-    const stage = makeNode(d, 'stage', {}, 'stage');
-    home.nodes.push(stage);
-    stage.children!.push(makeNode(d, 'character', { x: 156, y: 110 }, 'player'));
-    return d;
-  }
-  const section = makeNode(d, 'section', {}, 'hero');
-  home.nodes.push(section);
-  section.children!.push(makeNode(d, 'title', { text: 'Hello!' }, 'title'));
-  section.children!.push(makeNode(d, 'text', { text: type === 'website' ? 'Welcome to my website.' : 'Welcome to my app.' }, 'intro'));
-  section.children!.push(makeNode(d, 'button', { text: 'Click me' }, 'button'));
+  if (type === 'game' || type === 'animation') d.screens[0].nodes.push(makeNode(d, 'stage', {}, 'stage'));
   return d;
 }

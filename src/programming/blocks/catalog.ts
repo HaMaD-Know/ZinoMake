@@ -22,6 +22,7 @@ export type CategoryId =
   | 'decisions'
   | 'repeat'
   | 'variables'
+  | 'data'
   | 'functions'
   | 'time';
 
@@ -45,6 +46,7 @@ export const CATEGORIES: CategorySpec[] = [
   { id: 'decisions', name: 'Decisions', colour: '#3a8f8f', help: 'Do something only if something is true.' },
   { id: 'repeat', name: 'Repeat', colour: '#c96e2e', help: 'Do the same thing many times.' },
   { id: 'variables', name: 'Remember', colour: '#d0533f', help: 'Remember a number or word (a “variable”), like a score.' },
+  { id: 'data', name: 'Save & lists', colour: '#b8742a', help: 'Remember things even after the app is closed, and fill lists (to-do lists, notes, scores).' },
   { id: 'functions', name: 'My blocks', colour: '#7a6a58', help: 'Make your own block from a group of blocks (a “function”).' },
   { id: 'time', name: 'Time', colour: '#5a7bd6', help: 'Wait, or do something again and again every few seconds.' },
 ];
@@ -463,6 +465,52 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_stop', category: 'repeat', shape: 'statement', fn: 'stop',
     message: '⏹ stop the project', args: [],
     tooltip: 'Stops everything, just like pressing Stop. Use it when the game is over.',
+  },
+  // ---- Save & lists ----
+  {
+    type: 'zm_save', category: 'data', shape: 'statement', fn: 'saveValue', group: 'Save on this device',
+    message: '💾 save %2 as %1', args: [{ kind: 'text', name: 'KEY', default: 'best score' }, { kind: 'value', name: 'VALUE', check: null, default: 0 }],
+    tooltip: 'Keeps a value on this device, even after the app is closed. Get it back with “saved …”.',
+  },
+  {
+    type: 'zm_load', category: 'data', shape: 'value', fn: 'loadValue', output: null,
+    message: 'saved %1', args: [{ kind: 'text', name: 'KEY', default: 'best score' }],
+    tooltip: 'The value you saved with this name (empty if nothing was saved yet).',
+  },
+  {
+    type: 'zm_forget', category: 'data', shape: 'statement', fn: 'forgetSaved',
+    message: '💾 forget everything saved', args: [],
+    tooltip: 'Deletes everything this project saved on this device.',
+  },
+  {
+    type: 'zm_add_item', category: 'data', shape: 'statement', fn: 'addItem', group: 'Lists',
+    message: '➕ add item %2 to list %1', args: [THING('list'), str('TEXT', 'Buy milk')],
+    tooltip: 'Adds a line to a List (from Design or index.html).',
+  },
+  {
+    type: 'zm_remove_item', category: 'data', shape: 'statement', fn: 'removeItem',
+    message: '➖ remove item number %2 from list %1', args: [THING('list'), num('INDEX', 1)],
+    tooltip: 'Takes away one line. 1 is the first line.',
+  },
+  {
+    type: 'zm_clear_items', category: 'data', shape: 'statement', fn: 'clearItems',
+    message: '🧹 clear list %1', args: [THING('list')],
+    tooltip: 'Takes away every line from a list.',
+  },
+  {
+    type: 'zm_count_items', category: 'data', shape: 'value', fn: 'countItems', output: 'Number',
+    message: 'number of items in %1', args: [THING('list')],
+    tooltip: 'How many lines the list has.',
+  },
+  {
+    type: 'zm_items', category: 'data', shape: 'value', fn: 'itemsOf', output: 'String',
+    message: 'all items in %1', args: [THING('list')],
+    tooltip: 'Every line of the list as one piece of text. Save it with “save … as …”.',
+  },
+  {
+    type: 'zm_set_items', category: 'data', shape: 'statement', fn: 'setItems',
+    message: 'set items of list %1 to %2', args: [THING('list'), str('TEXT', '')],
+    tooltip: 'Fills a list from text, one line per item — for example from “saved todos”.',
   },
   // ---- Time ----
   {

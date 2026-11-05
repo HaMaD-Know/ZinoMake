@@ -1468,8 +1468,8 @@ export function blankTemplate(type: ProjectType): Template {
     emoji: '✨',
     colors: ['#adb5bd', '#f1f3f5'],
     nextIdeas: stage
-      ? ['In Design, add your own pictures to the stage and drag them into place.', 'In Blocks, use “when right arrow key is pressed” and “move player by x 10”.', 'Use “give player gravity” and “set speed of player” to make it jump.']
-      : ['In Design, add a nav bar and a second screen, then make a button “Go to a screen”.', 'Add a text box and use “what is typed in” in Blocks.', 'Change the main colour and font under Theme (click an empty part of the canvas).'],
+      ? ['In Design, tap ＋ under Pictures to add your own pictures, then drag them onto the stage.', 'Select a picture and press “Make it do more with blocks”, or use “when right arrow key is pressed” in Blocks.', 'Use “give … gravity” and “set speed of …” to make things fall and jump.']
+      : ['In Design, open “Ready-made sections” and add a Hero, Features or Contact form.', 'Drag things from the left onto the canvas, and drag them around to change the order.', 'Click an empty part of the canvas to change the theme: main colour, font and corners.'],
     design: starterDesign(type),
     html: `<!doctype html>
 <html>
@@ -1482,23 +1482,7 @@ export function blankTemplate(type: ProjectType): Template {
   margin: 0;
 }
 `,
-    js: stage
-      ? `onStart(async () => {
-  say("Hello!");
-});
-
-onKey("ArrowRight", async () => {
-  move("player", 10, 0);
-});
-
-onKey("ArrowLeft", async () => {
-  move("player", -10, 0);
-});
-`
-      : `onClick("button", async () => {
-  say("Hello!");
-});
-`,
+    js: ``,
   };
 }
 

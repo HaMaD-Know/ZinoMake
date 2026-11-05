@@ -82,9 +82,14 @@ describe('design model', () => {
     const p = createProjectFromTemplate(blankTemplate('app'));
     expect(p.files.map((f) => f.path)).toContain(DESIGN_FILE);
     const d = readDesign(p)!;
-    expect(designNames(d)).toEqual(['hero', 'title', 'intro', 'button']);
-    const changed = withDesign(p, removeNode(d, d.screens[0].nodes[0].id));
-    expect(readDesign(changed)!.screens[0].nodes).toEqual([]);
+    // a blank project is really blank: no sample words, buttons or blocks
+    expect(designNames(d)).toEqual([]);
+    expect(p.files.find((f) => f.path === 'main.js')!.content).toBe('');
+    const game = readDesign(createProjectFromTemplate(blankTemplate('game')))!;
+    expect(game.screens[0].nodes.map((n) => [n.type, n.children?.length])).toEqual([['stage', 0]]);
+    const withTitle = insertNode(d, d.screens[0].id, makeNode(d, 'title', {}, 'hello'), null);
+    const changed = withDesign(p, withTitle);
+    expect(designNames(readDesign(changed))).toEqual(['hello']);
   });
 });
 
@@ -160,5 +165,65 @@ describe('runtime: designed screens and controls', () => {
     expect(api.getValue('ok')).toBe(false);
     api.setValue('ok', true);
     expect(api.getValue('ok')).toBe(true);
+  });
+});
+
+describe('moving things and ready-made sections', () => {
+  it('↑ at the top of a box steps out of it; ↓ at the end steps out after it', async () => {
+    const { stepNode, canStep } = await import('../../src/design/model');
+    const d = sample();
+    const go = d.screens[0].nodes[0].children![0];
+    expect(canStep(d, go.id, -1)).toBe(true);
+    const up = stepNode(d, go.id, -1);
+    expect(up.screens[0].nodes.map((n) => n.name)).toEqual(['go', 'row']);
+    expect(canStep(up, go.id, -1)).toBe(false);
+    const down = stepNode(d, go.id, 1);
+    expect(down.screens[0].nodes.map((n) => n.name)).toEqual(['row', 'go']);
+  });
+
+  it('moveTo puts a thing at an exact place (drag and drop), never inside itself', async () => {
+    const { moveTo } = await import('../../src/design/model');
+    let d = sample();
+    const row = d.screens[0].nodes[0];
+    d = insertNode(d, d.screens[0].id, makeNode(d, 'text', {}, 'a'), null);
+    const a = d.screens[0].nodes[1];
+    d = moveTo(d, a.id, row.id, 0);
+    expect(d.screens[0].nodes[0].children!.map((n) => n.name)).toEqual(['a', 'go']);
+    expect(moveTo(d, row.id, row.id, 0)).toBe(d);
+  });
+
+  it('every ready-made section builds with unique names and renders', async () => {
+    const { SECTIONS, maker } = await import('../../src/design/sections');
+    const d = emptyDesign();
+    for (const sec of SECTIONS) d.screens[0].nodes.push(sec.build(maker(d)));
+    const names = designNames(d);
+    expect(new Set(names).size).toBe(names.length);
+    const html = renderDesign(d);
+    for (const sec of SECTIONS) expect(html.length).toBeGreaterThan(sec.id.length);
+    expect(html).toContain('<details');
+  });
+});
+
+describe('runtime: lists and saving', () => {
+  const runtime = readFileSync(resolve(__dirname, '../../src/runtime/zinoRuntime.js'), 'utf8');
+  it('adds, counts, removes and restores list items; saves values', () => {
+    const d = emptyDesign();
+    d.screens[0].nodes.push(makeNode(d, 'list', { items: '' }, 'todos'));
+    document.body.innerHTML = renderDesign(d);
+    (window as unknown as { __ZM_SAVED: unknown }).__ZM_SAVED = { best: 7 };
+    new Function(runtime).call(window);
+    const api = (window as unknown as { __zm: { api: Record<string, (...a: unknown[]) => unknown> } }).__zm.api;
+    api.addItem('todos', 'Milk');
+    api.addItem('todos', 'Eggs');
+    expect(api.countItems('todos')).toBe(2);
+    expect(api.itemsOf('todos')).toBe('Milk\nEggs');
+    api.removeItem('todos', 1);
+    expect(api.itemsOf('todos')).toBe('Eggs');
+    api.setItems('todos', 'A\nB\nC');
+    expect(api.countItems('todos')).toBe(3);
+    expect(api.loadValue('best')).toBe(7);
+    api.saveValue('best', 9);
+    expect(api.loadValue('best')).toBe(9);
+    expect(api.loadValue('nothing')).toBe('');
   });
 });

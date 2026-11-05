@@ -21,7 +21,16 @@ tablet or phone. No account, no installs for users, no paid services.
   corner handle. Each thing has **When tapped** (go to a screen, show a message, play a sound, open
   a link) and a button that opens Blocks with “when … is clicked” ready. Several **screens** with
   a nav bar, a project **theme** (main colour, font, corners), phone/tablet/desktop canvas sizes,
-  undo/redo. Saved as `design.json`; try the *Shop App* and *Business Website* starters.
+  undo/redo. **Drag and drop** things from the left onto the canvas (a purple line shows where they
+  land) and drag them around to change the order (on touch screens: hold, then drag).
+  **Ready-made sections** add a finished hero, features, pricing, reviews, gallery, FAQ, numbers,
+  team, contact form, log-in, sign-up or footer in one tap. Also grid, badge, FAQ question, table,
+  progress bar, round profile pictures, date/time/phone fields and background pictures.
+  Blank projects are really blank. Saved as `design.json`; try the *Shop App* and *Business
+  Website* starters.
+- **Save & lists** — “save … as …” / “saved …” keep values on the device between visits (in the
+  preview and in exported pages), and list blocks add, remove and count items — enough for to-do
+  lists, notes and high scores.
 - **Make things with blocks** — the *Make things* category adds a stage, emoji characters,
   boxes, circles, pictures, words, titles, buttons, typing boxes and phone arrow buttons, and
   *Looks* can resize, restyle and turn them. You never need to edit `index.html` or

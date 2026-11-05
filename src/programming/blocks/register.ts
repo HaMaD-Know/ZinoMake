@@ -278,6 +278,7 @@ export function buildToolbox(type: ProjectType): Blockly.utils.toolbox.ToolboxDe
       ...callsIn('repeat', type),
     ],
     variables: [],
+    data: callsIn('data', type),
     functions: [],
     time: callsIn('time', type),
   };

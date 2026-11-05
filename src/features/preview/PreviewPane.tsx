@@ -26,6 +26,30 @@ interface Props {
 
 let rowId = 1;
 
+/** What a project saved with “save … as …”, kept in this browser (per project). */
+const dataKey = (projectId: string) => `zinomake:data:${projectId}`;
+export function readSavedData(projectId: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(localStorage.getItem(dataKey(projectId)) || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+function writeSavedData(projectId: string, key: string, value: unknown): boolean {
+  const all = readSavedData(projectId);
+  if (value === null) delete all[key];
+  else all[key] = value;
+  const text = JSON.stringify(all);
+  if (text.length > 1_000_000) return false;
+  try {
+    localStorage.setItem(dataKey(projectId), text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const PreviewPane = forwardRef<PreviewHandle, Props>(function PreviewPane({ getProject, onRunningChange, onShowLine }, ref) {
   const [doc, setDoc] = useState<string | null>(null);
   const [runId, setRunId] = useState(0);
@@ -34,6 +58,7 @@ export const PreviewPane = forwardRef<PreviewHandle, Props>(function PreviewPane
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'stopped'>('idle');
   const frame = useRef<HTMLIFrameElement>(null);
   const onRunningRef = useRef(onRunningChange);
+  const projectIdRef = useRef<string | null>(null);
   onRunningRef.current = onRunningChange;
 
   const add = (r: Omit<LogRow, 'id'>) => setRows((rs) => [...rs.slice(-80), { ...r, id: rowId++ }]);
@@ -45,7 +70,8 @@ export const PreviewPane = forwardRef<PreviewHandle, Props>(function PreviewPane
     setStatus('starting');
     const { urls, missing } = await assetDataUrls(p).catch(() => ({ urls: {}, missing: [] as string[] }));
     for (const m of missing) add({ kind: 'error', text: `The file “${m}” could not be loaded. Choose another file or restore the asset.` });
-    setDoc(buildPreviewDocument({ project: p, assetUrls: urls }));
+    projectIdRef.current = p.id;
+    setDoc(buildPreviewDocument({ project: p, assetUrls: urls, savedData: readSavedData(p.id) }));
     setRunId((n) => n + 1);
     onRunningRef.current?.(true);
   };
@@ -79,6 +105,11 @@ export const PreviewPane = forwardRef<PreviewHandle, Props>(function PreviewPane
           break;
         case 'say':
           add({ kind: 'say', text: msg.message });
+          break;
+        case 'save':
+          if (projectIdRef.current && !writeSavedData(projectIdRef.current, msg.key, msg.value)) {
+            add({ kind: 'warn', text: 'There isn’t enough room to save more on this device.' });
+          }
           break;
         case 'log':
           add({ kind: msg.level === 'warn' ? 'warn' : msg.level === 'error' ? 'error' : 'log', text: msg.message });

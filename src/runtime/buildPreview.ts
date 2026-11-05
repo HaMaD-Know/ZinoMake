@@ -62,6 +62,8 @@ export interface PreviewInput {
   project: Pick<Project, 'files' | 'blocksFile' | 'type'>;
   /** asset name -> data: URL */
   assetUrls: Record<string, string>;
+  /** Values the project saved earlier with “save … as …” (preview only). */
+  savedData?: Record<string, unknown>;
 }
 
 export function replaceAssetRefs(text: string, assetUrls: Record<string, string>): string {
@@ -76,7 +78,7 @@ export function replaceAssetRefs(text: string, assetUrls: Record<string, string>
 const WRAP_START = '(async () => {\ntry {\n';
 const WRAP_LINES = 2;
 
-export function buildPreviewDocument({ project, assetUrls }: PreviewInput): string {
+export function buildPreviewDocument({ project, assetUrls, savedData }: PreviewInput): string {
   const files = project.files.filter((f) => f.kind === 'file');
   const htmlFile = files.find((f) => f.path === 'index.html') ?? files.find((f) => f.path.endsWith('.html'));
   const css = files.filter((f) => f.path.endsWith('.css')).map((f) => `/* ${f.path} */\n${f.content}`).join('\n');
@@ -98,7 +100,7 @@ export function buildPreviewDocument({ project, assetUrls }: PreviewInput): stri
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     ...(design ? [`<style>${escapeStyle(designCss(design.theme))}</style>`] : []),
     `<style>${escapeStyle(replaceAssetRefs(css, assetUrls))}</style>`,
-    `<script>window.__ZM_ASSETS=${escapeScript(JSON.stringify(assetUrls))};window.__ZM_LINE_OFFSET=${WRAP_LINES};</script>`,
+    `<script>window.__ZM_ASSETS=${escapeScript(JSON.stringify(assetUrls))};window.__ZM_LINE_OFFSET=${WRAP_LINES};${savedData ? `window.__ZM_SAVED=${escapeScript(JSON.stringify(savedData))};` : ''}</script>`,
     `<script>${escapeScript(runtimeSource)}\n//# sourceURL=zinomake-runtime.js</script>`,
   ].join('\n');
 
@@ -121,6 +123,7 @@ export type PreviewMessage =
   | { source: 'zinomake-preview'; type: 'ready' | 'started' | 'stopped' }
   | { source: 'zinomake-preview'; type: 'log'; level: 'log' | 'info' | 'warn' | 'error'; message: string }
   | { source: 'zinomake-preview'; type: 'say'; message: string }
+  | { source: 'zinomake-preview'; type: 'save'; key: string; value: string | number | boolean | null }
   | { source: 'zinomake-preview'; type: 'error'; message: string; technical?: string; line: number | null };
 
 export function validatePreviewMessage(data: unknown): PreviewMessage | null {
@@ -141,6 +144,12 @@ export function validatePreviewMessage(data: unknown): PreviewMessage | null {
     case 'say': {
       const message = str(d.message, 500);
       return message === null ? null : { source: 'zinomake-preview', type: 'say', message };
+    }
+    case 'save': {
+      const key = str(d.key, 100);
+      const v = d.value;
+      const value = v === null || typeof v === 'number' || typeof v === 'boolean' ? v : typeof v === 'string' ? v.slice(0, 20000) : undefined;
+      return key === null || value === undefined ? null : { source: 'zinomake-preview', type: 'save', key, value };
     }
     case 'error': {
       const message = str(d.message, 1000);

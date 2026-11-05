@@ -13,11 +13,12 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import type { AssetRef, Project } from '../../model/project';
 import {
   COMPONENTS, COMPONENT_BY_TYPE, LOOK_FIELDS, SIZE_FIELDS, SOUND_CHOICES, TAP_ACTIONS,
-  clone, duplicateNode, emptyDesign, firstStage, hasDesignFile, insertNode, locate, makeNode, moveNode,
+  canStep, clone, duplicateNode, emptyDesign, firstStage, hasDesignFile, insertAt, insertNode, locate, makeNode, moveTo, stepNode,
   readDesign, removeNode, reparentNode, safeThingName, serializeDesign, uniqueName, updateNode, walk, withDesign,
   type CompType, type Design, type DesignNode, type FieldSpec, type PropValue, type Screen,
 } from '../../design/model';
 import { DESIGN_ROOT_ID, designCss, insertDesignHtml, renderDesign } from '../../design/render';
+import { SECTIONS, maker } from '../../design/sections';
 import { replaceAssetRefs } from '../../runtime/buildPreview';
 import { ACCEPT_IMAGES, storeAssetFiles, useAssetUrls } from '../assets/AssetsPanel';
 import { confirmDialog, promptDialog } from '../../components/Dialog';
@@ -52,6 +53,7 @@ html,body{min-height:100%}
 #${DESIGN_ROOT_ID} .zm-row:empty::after,#${DESIGN_ROOT_ID} .zm-column:empty::after,#${DESIGN_ROOT_ID} .zm-card:empty::after,#${DESIGN_ROOT_ID} .zm-inner:empty::after{content:'Empty — select it, then add things';color:#8a84c9;font:600 13px system-ui;margin:auto;padding:20px}
 #${DESIGN_ROOT_ID} .zm-screen:empty{min-height:60vh}
 #${DESIGN_ROOT_ID} .zm-screen:empty::after{content:'This screen is empty. Add things from the left.';display:block;text-align:center;color:#8a8f9c;font:600 16px system-ui;padding:80px 20px}
+#zm-drop{position:absolute;display:none;background:#5b4bdb;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.9);pointer-events:none;z-index:2147483645}
 #zm-handle{position:absolute;width:16px;height:16px;border-radius:5px;background:#5b4bdb;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:nwse-resize;z-index:2147483646;touch-action:none;display:none}
 `;
 
@@ -235,13 +237,24 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
 
   const doc = () => frame.current?.contentDocument ?? null;
 
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+  const phoneRef = useRef(phone);
+  phoneRef.current = phone;
+  const scaleRef = useRef(1);
+
+  const typeOf = (id: string | null) => (id ? locate(designRef.current, id)?.node.type : undefined);
+
   const placeHandle = useCallback(() => {
     const d = doc();
     if (!d) return;
     const handle = d.getElementById('zm-handle');
     if (!handle) return;
-    const el = selected ? d.querySelector<HTMLElement>(`[data-zm-id="${CSS.escape(selected)}"]`) : null;
-    const t = selNode?.type;
+    const id = selectedRef.current;
+    const el = id ? d.querySelector<HTMLElement>(`[data-zm-id="${CSS.escape(id)}"]`) : null;
+    const t = typeOf(id);
     if (!el || !el.getClientRects().length || t === 'navbar' || t === 'section' || t === 'divider') {
       handle.style.display = 'none';
       return;
@@ -251,7 +264,7 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
     handle.style.display = 'block';
     handle.style.left = `${r.right + sx - 9}px`;
     handle.style.top = `${r.bottom + sy - 9}px`;
-  }, [selected, selNode?.type]);
+  }, []);
 
   // Draw the design into the canvas whenever it (or the selection) changes.
   useEffect(() => {
@@ -264,70 +277,169 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
     root.outerHTML = replaceAssetRefs(renderDesign(design, { onlyScreenId: screen.id }), urls);
     const s = d.getElementById('zm-sel');
     if (s) s.textContent = selected ? `[data-zm-id="${CSS.escape(selected)}"]{outline:2.5px solid #5b4bdb!important;outline-offset:2px}` : '';
-    let handle = d.getElementById('zm-handle');
-    if (!handle) {
-      handle = d.createElement('div');
-      handle.id = 'zm-handle';
-      handle.title = 'Drag to resize';
-      d.body.appendChild(handle);
+    for (const [id, title] of [['zm-handle', 'Drag to resize'], ['zm-drop', '']] as const) {
+      if (!d.getElementById(id)) {
+        const el = d.createElement('div');
+        el.id = id;
+        if (title) el.title = title;
+        d.body.appendChild(el);
+      }
     }
     // images change size once loaded
     d.querySelectorAll('img').forEach((img) => img.addEventListener('load', placeHandle, { once: true }));
     placeHandle();
   }, [design, screen.id, selected, urls, frameReady, placeHandle]);
 
-  // Pointer handling inside the canvas: select, drag free things, resize.
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  // ---------- drag and drop: where would a thing land? ----------
+  interface Drop { parentId: string | null; index: number; at?: { x: number; y: number } }
+
+  /** Work out the drop place under (x, y) in canvas coordinates, and show the purple line. */
+  const findDrop = useCallback((x: number, y: number, dragId: string | null, dragType: CompType): Drop | null => {
+    const d = doc();
+    if (!d) return null;
+    const line = d.getElementById('zm-drop');
+    const hide = () => { if (line) line.style.display = 'none'; };
+    let el = d.elementFromPoint(x, y) as HTMLElement | null;
+    const dragEl = dragId ? d.querySelector<HTMLElement>(`[data-zm-id="${CSS.escape(dragId)}"]`) : null;
+    let node = el?.closest<HTMLElement>('[data-zm-id]') ?? null;
+    while (node && dragEl && (node === dragEl || dragEl.contains(node))) node = node.parentElement?.closest<HTMLElement>('[data-zm-id]') ?? null;
+    const screenEl = d.querySelector<HTMLElement>(`#${DESIGN_ROOT_ID} .zm-screen`);
+    if (!screenEl) { hide(); return null; }
+    if (!node && el && !screenEl.contains(el) && el !== d.body && el !== d.documentElement) { hide(); return null; }
+
+    const kidsOf = (box: HTMLElement) => Array.from(box.querySelectorAll<HTMLElement>(':scope > [data-zm-id], :scope > .zm-inner > [data-zm-id]')).filter((k) => k !== dragEl);
+    const show = (r: { left: number; top: number; width: number; height: number }) => {
+      if (!line) return;
+      const sx = d.defaultView?.scrollX ?? 0, sy = d.defaultView?.scrollY ?? 0;
+      Object.assign(line.style, { display: 'block', left: `${r.left + sx}px`, top: `${r.top + sy}px`, width: `${Math.max(4, r.width)}px`, height: `${Math.max(4, r.height)}px` });
+    };
+    const place = (box: HTMLElement, parentId: string | null, horizontal: boolean): Drop => {
+      const kids = kidsOf(box);
+      let index = kids.length;
+      for (let i = 0; i < kids.length; i++) {
+        const r = kids[i].getBoundingClientRect();
+        const before = horizontal ? (y < r.bottom && x < r.left + r.width / 2) || y < r.top : y < r.top + r.height / 2;
+        if (before) { index = i; break; }
+      }
+      const ref = kids[index] ?? kids[kids.length - 1];
+      const br = (box.querySelector(':scope > .zm-inner') as HTMLElement | null ?? box).getBoundingClientRect();
+      if (!ref) show({ left: br.left + 8, top: br.top + Math.min(br.height / 2, 24), width: br.width - 16, height: 4 });
+      else {
+        const r = ref.getBoundingClientRect();
+        const after = index >= kids.length;
+        if (horizontal) show({ left: (after ? r.right : r.left) - 3, top: r.top, width: 4, height: r.height });
+        else show({ left: r.left, top: (after ? r.bottom : r.top) - 3, width: r.width, height: 4 });
+      }
+      // dragging within the same list: index is counted without the dragged thing
+      if (dragId) {
+        const loc = locate(designRef.current, dragId);
+        if (loc && (loc.parent?.id ?? null) === parentId && kidsOf(box).length < loc.list.length && index > loc.index) index += 1;
+      }
+      return { parentId, index };
+    };
+
+    if (!node) return place(screenEl, null, false);
+    const id = node.getAttribute('data-zm-id')!;
+    const spec = COMPONENT_BY_TYPE.get(typeOf(id) ?? 'text')!;
+    const r = node.getBoundingClientRect();
+    if (spec.free) {
+      if (dragType === 'stage') { hide(); return null; }
+      show({ left: r.left, top: r.top, width: r.width, height: 4 });
+      const st = node as HTMLElement;
+      return { parentId: id, index: st.children.length, at: { x: x - r.left - st.clientLeft - 20, y: y - r.top - st.clientTop - 20 } };
+    }
+    const nearEdge = y - r.top < 10 || r.bottom - y < 10;
+    if (spec.container && !(nearEdge && kidsOf(node).length)) return place(node, id, !!spec.horizontal);
+    // a leaf (or the edge of a box): before or after it, in its parent
+    const parentEl = node.parentElement?.closest<HTMLElement>('[data-zm-id]') ?? null;
+    if (!parentEl) return place(screenEl, null, false);
+    const pid = parentEl.getAttribute('data-zm-id')!;
+    const pspec = COMPONENT_BY_TYPE.get(typeOf(pid) ?? 'column')!;
+    if (pspec.free) { hide(); return null; }
+    return place(parentEl, pid, !!pspec.horizontal);
+  }, []);
+
+  const hideDrop = () => { const l = doc()?.getElementById('zm-drop'); if (l) l.style.display = 'none'; };
+
+  // Pointer handling inside the canvas: select, drag on a stage, drag to reorder, resize.
+  type CanvasDrag = { mode: 'move' | 'resize' | 'reorder' | 'pending'; id: string; el: HTMLElement; sx: number; sy: number; x0: number; y0: number; w0: number; h0: number; moved: boolean; pid: number; touch: boolean; timer?: number };
+  const dragRef = useRef<CanvasDrag | null>(null);
   useEffect(() => {
     const d = doc();
-    if (!d) return;
-    let drag: null | { mode: 'move' | 'resize'; id: string; el: HTMLElement; sx: number; sy: number; x0: number; y0: number; w0: number; h0: number; moved: boolean; pid: number } = null;
-    const nodeEl = (t: EventTarget | null) => (t instanceof d.defaultView!.Element ? (t.closest('[data-zm-id]') as HTMLElement | null) : null);
+    const win = d?.defaultView;
+    if (!d || !win) return;
+    const nodeEl = (t: EventTarget | null) => (t instanceof win.Element ? (t.closest('[data-zm-id]') as HTMLElement | null) : null);
 
     const down = (e: PointerEvent) => {
       const target = e.target as HTMLElement;
-      if (target.id === 'zm-handle' && selectedRef.current) {
-        const el = d.querySelector<HTMLElement>(`[data-zm-id="${CSS.escape(selectedRef.current)}"]`);
+      const sel = selectedRef.current;
+      if (target.id === 'zm-handle' && sel) {
+        const el = d.querySelector<HTMLElement>(`[data-zm-id="${CSS.escape(sel)}"]`);
         if (!el) return;
         e.preventDefault();
-        drag = { mode: 'resize', id: selectedRef.current, el, sx: e.clientX, sy: e.clientY, x0: 0, y0: 0, w0: el.offsetWidth, h0: el.offsetHeight, moved: false, pid: e.pointerId };
-        target.setPointerCapture(e.pointerId);
+        dragRef.current = { mode: 'resize', id: sel, el, sx: e.clientX, sy: e.clientY, x0: 0, y0: 0, w0: el.offsetWidth, h0: el.offsetHeight, moved: false, pid: e.pointerId, touch: e.pointerType === 'touch' };
+        try { target.setPointerCapture(e.pointerId); } catch { /* ignore */ }
         return;
       }
       const el = nodeEl(e.target);
-      e.preventDefault(); // no focusing, no text selection, no native dragging in the canvas
+      if (e.pointerType !== 'touch') e.preventDefault(); // no focusing or text selection (touch keeps scrolling)
       if (!el) {
         setSelected(null);
         return;
       }
       const id = el.getAttribute('data-zm-id')!;
       setSelected(id);
-      if (phone) setTab('props');
+      const touch = e.pointerType === 'touch';
       if (el.classList.contains('zm-free')) {
-        drag = { mode: 'move', id, el, sx: e.clientX, sy: e.clientY, x0: el.offsetLeft, y0: el.offsetTop, w0: 0, h0: 0, moved: false, pid: e.pointerId };
+        dragRef.current = { mode: 'move', id, el, sx: e.clientX, sy: e.clientY, x0: el.offsetLeft, y0: el.offsetTop, w0: 0, h0: 0, moved: false, pid: e.pointerId, touch };
         try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        return;
       }
+      // Things in rows/columns/pages: drag to change the order (touch: hold first, then drag).
+      const g: CanvasDrag = { mode: 'pending', id, el, sx: e.clientX, sy: e.clientY, x0: 0, y0: 0, w0: 0, h0: 0, moved: false, pid: e.pointerId, touch };
+      if (touch) g.timer = win.setTimeout(() => { if (dragRef.current === g && !g.moved) { g.mode = 'reorder'; el.style.opacity = '0.45'; } }, 350);
+      dragRef.current = g;
     };
     const move = (e: PointerEvent) => {
-      if (!drag || e.pointerId !== drag.pid) return;
-      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-      if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
-      if (drag.mode === 'move') {
-        drag.el.style.left = `${Math.round(drag.x0 + dx)}px`;
-        drag.el.style.top = `${Math.round(drag.y0 + dy)}px`;
+      const g = dragRef.current;
+      if (!g || e.pointerId !== g.pid) return;
+      const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+      const far = Math.abs(dx) + Math.abs(dy) > (g.touch ? 8 : 4);
+      if (g.mode === 'pending') {
+        if (!far) return;
+        if (g.touch) { win.clearTimeout(g.timer); dragRef.current = null; return; } // a touch that moves right away is a scroll
+        g.mode = 'reorder';
+        g.el.style.opacity = '0.45';
+        try { g.el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      }
+      if (far) g.moved = true;
+      if (g.mode === 'reorder') {
+        findDrop(e.clientX, e.clientY, g.id, typeOf(g.id) ?? 'text');
+        return;
+      }
+      if (g.mode === 'move') {
+        g.el.style.left = `${Math.round(g.x0 + dx)}px`;
+        g.el.style.top = `${Math.round(g.y0 + dy)}px`;
       } else {
-        drag.el.style.width = `${Math.max(8, Math.round(drag.w0 + dx))}px`;
-        drag.el.style.height = `${Math.max(8, Math.round(drag.h0 + dy))}px`;
-        if (drag.el.classList.contains('zm-character')) drag.el.style.fontSize = `${Math.max(8, Math.round(drag.h0 + dy))}px`;
+        g.el.style.width = `${Math.max(8, Math.round(g.w0 + dx))}px`;
+        g.el.style.height = `${Math.max(8, Math.round(g.h0 + dy))}px`;
+        if (g.el.classList.contains('zm-character')) g.el.style.fontSize = `${Math.max(8, Math.round(g.h0 + dy))}px`;
       }
       placeHandle();
     };
     const up = (e: PointerEvent) => {
-      if (!drag || e.pointerId !== drag.pid) return;
-      const g = drag;
-      drag = null;
-      if (!g.moved) return;
+      const g = dragRef.current;
+      if (!g || e.pointerId !== g.pid) return;
+      dragRef.current = null;
+      if (g.timer) win.clearTimeout(g.timer);
+      g.el.style.opacity = '';
+      if (g.mode === 'reorder') {
+        const drop = e.type === 'pointercancel' ? null : findDrop(e.clientX, e.clientY, g.id, typeOf(g.id) ?? 'text');
+        hideDrop();
+        if (drop) commit(moveTo(designRef.current, g.id, drop.parentId, drop.index, drop.at));
+        return;
+      }
+      if (!g.moved || g.mode === 'pending' || e.type === 'pointercancel') return;
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
       commit(updateNode(designRef.current, g.id, (n) => {
         if (g.mode === 'move') {
@@ -337,31 +449,144 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
           n.props.size = Math.max(8, Math.round(g.h0 + dy));
         } else {
           n.props.width = String(Math.max(8, Math.round(g.w0 + dx)));
-          if (n.type !== 'title' && n.type !== 'text' && n.type !== 'button' && n.type !== 'link') n.props.height = String(Math.max(8, Math.round(g.h0 + dy)));
+          if (n.type !== 'title' && n.type !== 'text' && n.type !== 'button' && n.type !== 'link' && n.type !== 'badge') n.props.height = String(Math.max(8, Math.round(g.h0 + dy)));
         }
       }));
     };
+    // While dragging with a finger, stop the page from scrolling.
+    const touchMove = (e: TouchEvent) => { const g = dragRef.current; if (g && g.mode !== 'pending') e.preventDefault(); };
+    const tapUp = (e: PointerEvent) => {
+      // A finger tap (no drag) on a thing opens its properties on phones.
+      if (phoneRef.current && nodeEl(e.target)) setTab('props');
+    };
     const click = (e: MouseEvent) => e.preventDefault();
+    const keydown = (e: KeyboardEvent) => onKeyRef.current(e);
     d.addEventListener('pointerdown', down, true);
     d.addEventListener('pointermove', move, true);
     d.addEventListener('pointerup', up, true);
+    d.addEventListener('pointerup', tapUp);
     d.addEventListener('pointercancel', up, true);
+    d.addEventListener('touchmove', touchMove, { passive: false, capture: true });
     d.addEventListener('click', click, true);
     d.addEventListener('scroll', placeHandle);
-    d.addEventListener('keydown', onKey);
+    d.addEventListener('keydown', keydown);
     return () => {
       d.removeEventListener('pointerdown', down, true);
       d.removeEventListener('pointermove', move, true);
       d.removeEventListener('pointerup', up, true);
+      d.removeEventListener('pointerup', tapUp);
       d.removeEventListener('pointercancel', up, true);
+      d.removeEventListener('touchmove', touchMove, true);
       d.removeEventListener('click', click, true);
       d.removeEventListener('scroll', placeHandle);
-      d.removeEventListener('keydown', onKey);
+      d.removeEventListener('keydown', keydown);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frameReady, commit, placeHandle, phone]);
+  }, [frameReady, commit, placeHandle, findDrop]);
+
+  // ---------- dragging new things from the left onto the canvas ----------
+  type NewThing = { kind: 'comp'; type: CompType; extra?: Record<string, PropValue>; name?: string } | { kind: 'section'; id: string };
+  const paletteDrag = useRef<null | { thing: NewThing; sx: number; sy: number; active: boolean; pid: number; touch: boolean; timer?: number; ghost?: HTMLDivElement; label: string }>(null);
+  const suppressClick = useRef(false);
+
+  const toCanvas = (cx: number, cy: number) => {
+    const f = frame.current;
+    if (!f) return null;
+    const r = f.getBoundingClientRect();
+    if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+    const sc = scaleRef.current || 1;
+    return { x: (cx - r.left) / sc, y: (cy - r.top) / sc };
+  };
+
+  const startPaletteDrag = (e: React.PointerEvent, thing: NewThing, label: string) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    const touch = e.pointerType === 'touch';
+    const target = e.currentTarget as HTMLElement;
+    const g = { thing, sx: e.clientX, sy: e.clientY, active: false, pid: e.pointerId, touch, label } as NonNullable<typeof paletteDrag.current>;
+    paletteDrag.current = g;
+    const begin = () => {
+      g.active = true;
+      const ghost = document.createElement('div');
+      ghost.className = 'dz-ghost';
+      ghost.textContent = label;
+      document.body.appendChild(ghost);
+      g.ghost = ghost;
+      try { target.setPointerCapture(g.pid); } catch { /* ignore */ }
+    };
+    if (touch) g.timer = window.setTimeout(() => { if (paletteDrag.current === g) begin(); }, 300);
+    const moveH = (ev: PointerEvent) => {
+      if (ev.pointerId !== g.pid) return;
+      const far = Math.abs(ev.clientX - g.sx) + Math.abs(ev.clientY - g.sy) > 6;
+      if (!g.active) {
+        if (!far) return;
+        if (touch) { cleanup(); return; } // moved before the hold finished: it's a scroll
+        begin();
+      }
+      if (g.ghost) Object.assign(g.ghost.style, { left: `${ev.clientX + 12}px`, top: `${ev.clientY + 12}px` });
+      const pt = toCanvas(ev.clientX, ev.clientY);
+      const type = thing.kind === 'comp' ? thing.type : 'section';
+      if (pt) findDrop(pt.x, pt.y, null, type); else hideDrop();
+    };
+    const upH = (ev: PointerEvent) => {
+      if (ev.pointerId !== g.pid) return;
+      if (g.active) {
+        suppressClick.current = true;
+        setTimeout(() => { suppressClick.current = false; }, 50);
+        const pt = ev.type === 'pointerup' ? toCanvas(ev.clientX, ev.clientY) : null;
+        const type = thing.kind === 'comp' ? thing.type : 'section';
+        const drop = pt ? findDrop(pt.x, pt.y, null, type) : null;
+        hideDrop();
+        if (drop) addAt(thing, drop);
+      }
+      cleanup();
+    };
+    const touchBlock = (ev: TouchEvent) => { if (g.active) ev.preventDefault(); };
+    const cleanup = () => {
+      if (g.timer) clearTimeout(g.timer);
+      g.ghost?.remove();
+      if (paletteDrag.current === g) paletteDrag.current = null;
+      window.removeEventListener('pointermove', moveH, true);
+      window.removeEventListener('pointerup', upH, true);
+      window.removeEventListener('pointercancel', upH, true);
+      window.removeEventListener('touchmove', touchBlock, true);
+    };
+    window.addEventListener('pointermove', moveH, true);
+    window.addEventListener('pointerup', upH, true);
+    window.addEventListener('pointercancel', upH, true);
+    window.addEventListener('touchmove', touchBlock, { passive: false, capture: true });
+  };
 
   // ---------- actions ----------
+  const build = (d: Design, thing: NewThing): DesignNode => {
+    if (thing.kind === 'section') return SECTIONS.find((x) => x.id === thing.id)!.build(maker(d));
+    return makeNode(d, thing.type, thing.extra ?? {}, thing.name);
+  };
+
+  /** Drop a new thing exactly where it was dragged to. */
+  function addAt(thing: NewThing, drop: Drop) {
+    const d = designRef.current;
+    const node = build(d, thing);
+    const next = insertAt(d, screenRef.current.id, node, drop.parentId, drop.index, drop.at);
+    if (next === d) return;
+    commit(next);
+    setSelected(node.id);
+    if (phoneRef.current) setTab('props');
+  }
+
+  const addSection = (id: string) => {
+    const d = designRef.current;
+    const node = build(d, { kind: 'section', id });
+    const next = clone(d);
+    const list = next.screens.find((s) => s.id === screen.id)!.nodes;
+    // after the top-level thing that holds the selection; else at the end (but above a footer)
+    let at = list.length;
+    if (selNode) at = list.findIndex((n) => { let hit = false; walk([n], (m) => { if (m.id === selNode.id) hit = true; }); return hit; }) + 1;
+    else if (id !== 'footer' && list.length && list[list.length - 1].name.startsWith('footer')) at = list.length - 1;
+    list.splice(at, 0, node);
+    commit(next);
+    setSelected(node.id);
+    if (phone) setTab('props');
+  };
+
   const add = (type: CompType, extra: Record<string, PropValue> = {}, name?: string) => {
     const d = designRef.current;
     const node = makeNode(d, type, extra, name);
@@ -464,6 +689,8 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
       nudge(dx, dy);
     } else if (e.key === 'Escape') setSelected(null);
   }
+  const onKeyRef = useRef(onKey);
+  onKeyRef.current = onKey;
   useEffect(() => {
     if (!visible) return;
     const h = (e: KeyboardEvent) => {
@@ -483,14 +710,17 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
     if (!name) return;
     const next = clone(designRef.current);
     const s: Screen = { id: newId('scr'), name: name.trim().slice(0, 40), background: '', nodes: [] };
-    // Copy the nav bar so every screen can go back.
-    const nav = next.screens[0].nodes.find((n) => n.type === 'navbar');
-    if (nav) {
-      const copy = makeNode(next, 'navbar', { ...nav.props }, nav.name);
-      s.nodes.push(copy);
-    }
     next.screens.push(s);
+    // Every screen gets a nav bar, so people can always get back (and forward) when playing.
+    let nav: DesignNode | undefined;
+    for (const sc of next.screens) nav = nav ?? sc.nodes.find((n) => n.type === 'navbar');
+    const added = !nav;
+    for (const sc of next.screens) {
+      if (sc.nodes.some((n) => n.type === 'navbar')) continue;
+      sc.nodes.unshift(makeNode(next, 'navbar', nav ? { ...nav.props } : { text: project.name.slice(0, 40) || 'My App' }, 'nav'));
+    }
     commit(next);
+    if (added) toast('Added a nav bar to every screen, so you can move between them when playing.');
     setScreenId(s.id);
     setSelected(null);
   };
@@ -530,14 +760,28 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
 
   // ---------- panels ----------
   const groups = ['Layout', 'Text', 'Pictures', 'Controls'] as const;
+  const tapOr = (fn: () => void) => () => { if (!suppressClick.current) fn(); };
   const palette = (
     <div className="dz-palette">
+      <p className="hint dz-tip">Tap to add, or drag onto the canvas{phone ? ' (hold, then drag)' : ''}.</p>
+      <details className="dz-group" open>
+        <summary><h4>Ready-made sections</h4></summary>
+        <div className="dz-grid">
+          {SECTIONS.map((sec) => (
+            <button key={sec.id} type="button" className="dz-add" title={sec.help} data-testid={`section-${sec.id}`}
+              onPointerDown={(e) => startPaletteDrag(e, { kind: 'section', id: sec.id }, `${sec.icon} ${sec.label}`)} onClick={tapOr(() => addSection(sec.id))}>
+              <span aria-hidden="true">{sec.icon}</span>{sec.label}
+            </button>
+          ))}
+        </div>
+      </details>
       {groups.map((g) => (
         <div key={g} className="dz-group">
           <h4>{g}</h4>
           <div className="dz-grid">
             {COMPONENTS.filter((c) => c.group === g).map((c) => (
-              <button key={c.type} type="button" className="dz-add" onClick={() => add(c.type)} title={c.help} data-testid={`add-${c.type}`}>
+              <button key={c.type} type="button" className="dz-add" onClick={tapOr(() => add(c.type))} title={c.help} data-testid={`add-${c.type}`}
+                onPointerDown={(e) => startPaletteDrag(e, { kind: 'comp', type: c.type }, `${c.icon} ${c.label}`)}>
                 <span aria-hidden="true">{c.icon}</span>{c.label}
               </button>
             ))}
@@ -545,7 +789,8 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
           {g === 'Pictures' && (
             <div className="dz-pics">
               {images.map((a) => (
-                <button key={a.id} type="button" className="dz-pic" onClick={() => add('image', { image: a.name }, a.name.replace(/\.[^.]+$/, ''))} title={`Add ${a.name}`} aria-label={`Add picture ${a.name}`}>
+                <button key={a.id} type="button" className="dz-pic" onClick={tapOr(() => add('image', { image: a.name }, a.name.replace(/\.[^.]+$/, '')))} title={`Add ${a.name}`} aria-label={`Add picture ${a.name}`}
+                  onPointerDown={(e) => startPaletteDrag(e, { kind: 'comp', type: 'image', extra: { image: a.name }, name: a.name.replace(/\.[^.]+$/, '') }, `🖼 ${a.name}`)}>
                   {urls[a.name] ? <img src={urls[a.name]} alt="" /> : '🖼'}
                 </button>
               ))}
@@ -637,8 +882,8 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
               onBlur={(e) => rename(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
           </div>
           <div className="dz-actions">
-            <button className="btn btn-sm btn-icon" onClick={() => commit(moveNode(designRef.current, selNode.id, -1))} aria-label="Move up" title="Move up">↑</button>
-            <button className="btn btn-sm btn-icon" onClick={() => commit(moveNode(designRef.current, selNode.id, 1))} aria-label="Move down" title="Move down">↓</button>
+            <button className="btn btn-sm btn-icon" disabled={!canStep(design, selNode.id, -1)} onClick={() => commit(stepNode(designRef.current, selNode.id, -1))} aria-label="Move up" title="Move up (out of its box when it is first)">↑</button>
+            <button className="btn btn-sm btn-icon" disabled={!canStep(design, selNode.id, 1)} onClick={() => commit(stepNode(designRef.current, selNode.id, 1))} aria-label="Move down" title="Move down (out of its box when it is last)">↓</button>
             <button className="btn btn-sm" onClick={duplicate}>Duplicate</button>
             <button className="btn btn-sm" onClick={() => void removeSel()} data-testid="dz-delete">Delete</button>
           </div>
@@ -719,6 +964,7 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
   // Zoom the canvas out when the chosen size is wider than the space (like a browser's zoom).
   const width = phone ? Math.max(280, wrapSize.w - 16) : DEVICE_WIDTH[device];
   const scale = phone ? 1 : Math.min(1, Math.max(0.3, (wrapSize.w - 32) / width));
+  scaleRef.current = scale;
   const height = Math.max(320, (wrapSize.h - 32) / scale);
   const canvas = (
     <div ref={wrap} className="dz-canvas-wrap" onPointerDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
@@ -727,7 +973,6 @@ export const DesignEditor = forwardRef<DesignEditorHandle, Props>(function Desig
           ref={frame}
           className="dz-canvas"
           title="Design canvas"
-          sandbox="allow-same-origin"
           srcDoc={base}
           style={{ width, height, transform: scale < 1 ? `scale(${scale})` : undefined }}
           onLoad={() => setFrameReady((n) => n + 1)}

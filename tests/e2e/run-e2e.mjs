@@ -331,6 +331,9 @@ await step('design view: change a button, add a screen, tap goes there with no c
   await page.getByTestId('design-canvas').waitFor({ timeout: 15000 });
   await page.waitForTimeout(600);
   const canvas = page.frameLocator('[data-testid=design-canvas]');
+  assert((await canvas.locator('[data-zm-id]').count()) === 0, 'a blank project must be empty');
+  await page.getByTestId('add-button').click();
+  await canvas.locator('#button').waitFor({ timeout: 5000 });
   await canvas.locator('#button').click();
   assert((await page.getByTestId('dz-name').inputValue()) === 'button', 'button not selected');
   await page.locator('.dz-right .dz-field').filter({ hasText: 'Words' }).locator('input').fill('Next page');
@@ -339,6 +342,7 @@ await step('design view: change a button, add a screen, tap goes there with no c
   await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click();
   await page.getByTestId('add-title').click();
   await page.locator('.dz-screens').getByRole('tab', { name: /Home/ }).click();
+  assert((await canvas.locator('.zm-navbar').count()) === 1, 'new screens should add a nav bar');
   await canvas.locator('#button').click();
   await page.locator('.dz-right .dz-field').filter({ hasText: 'Do this' }).locator('select').selectOption('screen');
   await page.locator('.dz-right .dz-field').filter({ hasText: /^Screen/ }).locator('select').selectOption('Second');

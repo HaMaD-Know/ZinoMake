@@ -31,9 +31,13 @@ src/
 `design.json` holds a theme and a list of screens, each a tree of components (`src/design/model.ts`).
 `renderDesign` turns it into plain HTML with one `.zm-screen` per screen; every component's
 element id is its name, so blocks use designed things exactly like elements in `index.html`.
-The same renderer feeds the preview, the exported page and the designer canvas. The canvas is an
-`<iframe sandbox="allow-same-origin">` showing the sanitised page (no scripts run); the editor
-attaches pointer listeners to select, drag (things on a stage) and resize. “When tapped” actions are
+The same renderer feeds the preview, the exported page and the designer canvas. The canvas is a same-origin
+`<iframe>` showing the sanitised page: scripts, frames and `on…` attributes are removed and a
+`default-src 'none'` CSP blocks any script, so no project code runs while designing. The editor
+attaches pointer listeners to select, drag (on a stage), drag to reorder / drop new things (a drop
+line shows the place) and resize. Saved values (`saveValue`) are sent from the sandboxed preview to
+the editor with `postMessage` and kept per project in localStorage; exported pages use their own
+localStorage. “When tapped” actions are
 `data-zm-tap` attributes handled by the runtime, so navigation needs no code. Blocks add
 `goToScreen`, `onScreen`, `onChange` and `setValue`.
 
