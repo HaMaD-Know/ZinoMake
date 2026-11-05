@@ -13,6 +13,7 @@ import type { ProjectType } from '../../model/project';
 
 export type CategoryId =
   | 'start'
+  | 'objects'
   | 'events'
   | 'motion'
   | 'looks'
@@ -35,6 +36,7 @@ export interface CategorySpec {
 
 export const CATEGORIES: CategorySpec[] = [
   { id: 'start', name: 'Start', colour: '#e8a317', help: 'Every program begins with a start block. Put other blocks inside it.' },
+  { id: 'objects', name: 'Make things', colour: '#0e8f9e', help: 'Add a stage, characters, shapes, text, buttons and boxes to type in — no code needed.' },
   { id: 'events', name: 'Events', colour: '#d9822b', help: 'Do something when a button is clicked or a key is pressed.' },
   { id: 'motion', name: 'Movement', colour: '#3b82c4', types: ['game', 'animation', 'website'], help: 'Move objects around the screen and check if they touch.' },
   { id: 'looks', name: 'Looks', colour: '#8a5cc2', help: 'Show messages, change colours and change what things look like.' },
@@ -70,6 +72,8 @@ export interface CallBlockSpec {
   output?: ValueCheck;
   tooltip: string;
   types?: ProjectType[];
+  /** Optional heading shown above this block in the toolbox (starts a new group). */
+  group?: string;
 }
 
 export const KEY_OPTIONS: [string, string][] = [
@@ -94,6 +98,21 @@ export const SOUND_OPTIONS: [string, string][] = [
   ['lose', 'lose'],
 ];
 
+export const STYLE_OPTIONS: [string, string][] = [
+  ['fill colour', 'fill'],
+  ['text colour', 'textColor'],
+  ['text size', 'textSize'],
+  ['roundness', 'roundness'],
+  ['border colour', 'border'],
+  ['see-through % (0–100)', 'seeThrough'],
+  ['layer (bigger = in front)', 'layer'],
+  ['font', 'font'],
+];
+
+const NAME = (d: string): ArgSpec => ({ kind: 'text', name: 'NAME', default: d });
+const num = (name: string, d: number): ArgSpec => ({ kind: 'value', name, check: 'Number', default: d });
+const str = (name: string, d: string): ArgSpec => ({ kind: 'value', name, check: null, default: d });
+
 export const CALL_BLOCKS: CallBlockSpec[] = [
   // ---- Start / time ----
   {
@@ -105,6 +124,77 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_every', category: 'time', shape: 'event', fn: 'every',
     message: '⏱ every %1 seconds', args: [{ kind: 'number', name: 'SECONDS', default: 1 }],
     tooltip: 'Runs the blocks inside again and again, every few seconds.',
+  },
+  // ---- Make things (create objects without editing index.html) ----
+  {
+    type: 'zm_set_stage', category: 'objects', shape: 'statement', fn: 'setStage', group: 'On the stage',
+    message: '🖼 make the stage width %1 height %2 colour %3',
+    args: [num('WIDTH', 360), num('HEIGHT', 280), str('COLOR', 'skyblue')],
+    tooltip: 'Makes (or resizes) the stage: the box where characters and shapes live.',
+  },
+  {
+    type: 'zm_add_character', category: 'objects', shape: 'statement', fn: 'addCharacter',
+    message: '➕ add character %1 looking like %2 at x %3 y %4 size %5',
+    args: [NAME('player'), str('LOOK', '🐱'), num('X', 160), num('Y', 120), num('SIZE', 48)],
+    tooltip: 'Adds a character to the stage. Its look can be any emoji, like 🐱 🚀 ⭐ 👾.',
+  },
+  {
+    type: 'zm_add_box', category: 'objects', shape: 'statement', fn: 'addBox',
+    message: '➕ add box %1 at x %2 y %3 width %4 height %5 colour %6',
+    args: [NAME('box'), num('X', 40), num('Y', 40), num('WIDTH', 60), num('HEIGHT', 40), str('COLOR', 'tomato')],
+    tooltip: 'Adds a rectangle to the stage. Use it for players, walls, floors and platforms.',
+  },
+  {
+    type: 'zm_add_circle', category: 'objects', shape: 'statement', fn: 'addCircle',
+    message: '➕ add circle %1 at x %2 y %3 size %4 colour %5',
+    args: [NAME('ball'), num('X', 100), num('Y', 100), num('SIZE', 40), str('COLOR', 'gold')],
+    tooltip: 'Adds a circle to the stage. Great for balls and coins.',
+  },
+  {
+    type: 'zm_add_picture', category: 'objects', shape: 'statement', fn: 'addPicture',
+    message: '➕ add picture %1 using %2 at x %3 y %4 size %5',
+    args: [NAME('picture'), { kind: 'text', name: 'ASSET', default: 'picture.png' }, num('X', 40), num('Y', 40), num('SIZE', 80)],
+    tooltip: 'Adds one of your pictures (from Pictures & sounds) to the stage.',
+  },
+  {
+    type: 'zm_add_label', category: 'objects', shape: 'statement', fn: 'addLabel',
+    message: '➕ add words %1 saying %2 at x %3 y %4 size %5',
+    args: [NAME('score'), str('TEXT', 'Score: 0'), num('X', 10), num('Y', 10), num('SIZE', 20)],
+    tooltip: 'Adds words to the stage, like a score or a title. Change them later with “set text of”.',
+  },
+  {
+    type: 'zm_add_title', category: 'objects', shape: 'statement', fn: 'addTitle', group: 'On the page',
+    message: '➕ add title %1 saying %2',
+    args: [NAME('title'), str('TEXT', 'Hello!')],
+    tooltip: 'Adds a big heading to the page.',
+  },
+  {
+    type: 'zm_add_paragraph', category: 'objects', shape: 'statement', fn: 'addParagraph',
+    message: '➕ add words %1 saying %2',
+    args: [NAME('words'), str('TEXT', 'Write something here.')],
+    tooltip: 'Adds a line of text to the page.',
+  },
+  {
+    type: 'zm_add_button', category: 'objects', shape: 'statement', fn: 'addButton',
+    message: '➕ add button %1 saying %2',
+    args: [NAME('button'), str('TEXT', 'Click me')],
+    tooltip: 'Adds a button. Use “when … is clicked” with the same name to make it do something.',
+  },
+  {
+    type: 'zm_add_input', category: 'objects', shape: 'statement', fn: 'addInput',
+    message: '➕ add typing box %1 with hint %2',
+    args: [NAME('input'), str('TEXT', 'Type here')],
+    tooltip: 'Adds a box people can type into. Read it with “what is typed in”.',
+  },
+  {
+    type: 'zm_add_arrows', category: 'objects', shape: 'statement', fn: 'addArrowButtons',
+    message: '🎮 add arrow buttons for phones', args: [],
+    tooltip: 'Adds on-screen ◀ ▲ ▼ ▶ buttons that work like the arrow keys, for phones and tablets.',
+  },
+  {
+    type: 'zm_remove', category: 'objects', shape: 'statement', fn: 'remove', group: 'Take away',
+    message: '🗑 remove %1', args: [{ kind: 'text', name: 'TARGET', default: 'box' }],
+    tooltip: 'Takes a thing away for good. (Use “hide” if you want to show it again later.)',
   },
   // ---- Events ----
   {
@@ -162,6 +252,22 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     ],
     tooltip: 'True when the two objects overlap.',
   },
+  {
+    type: 'zm_turn', category: 'motion', shape: 'statement', fn: 'turn',
+    message: '↻ turn %1 by %2 degrees',
+    args: [{ kind: 'text', name: 'TARGET', default: 'player' }, num('DEGREES', 15)],
+    tooltip: 'Spins an object. Positive numbers turn clockwise.',
+  },
+  {
+    type: 'zm_mouse_x', category: 'motion', shape: 'value', fn: 'mouseX', output: 'Number',
+    message: 'mouse x', args: [],
+    tooltip: 'How far right the mouse (or finger) is on the stage.',
+  },
+  {
+    type: 'zm_mouse_y', category: 'motion', shape: 'value', fn: 'mouseY', output: 'Number',
+    message: 'mouse y', args: [],
+    tooltip: 'How far down the mouse (or finger) is on the stage.',
+  },
   // ---- Looks ----
   {
     type: 'zm_say', category: 'looks', shape: 'statement', fn: 'say',
@@ -199,6 +305,22 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
       { kind: 'text', name: 'ASSET', default: 'picture.png' },
     ],
     tooltip: 'Shows one of your project pictures (from Assets) on a thing.',
+  },
+  {
+    type: 'zm_set_size', category: 'looks', shape: 'statement', fn: 'setSize',
+    message: 'set size of %1 to width %2 height %3',
+    args: [{ kind: 'text', name: 'TARGET', default: 'player' }, num('WIDTH', 60), num('HEIGHT', 60)],
+    tooltip: 'Makes a thing bigger or smaller. For characters, the height is the size.',
+  },
+  {
+    type: 'zm_set_style', category: 'looks', shape: 'statement', fn: 'setStyle',
+    message: '🎨 set %2 of %1 to %3',
+    args: [
+      { kind: 'text', name: 'TARGET', default: 'player' },
+      { kind: 'dropdown', name: 'STYLE', options: STYLE_OPTIONS },
+      str('VALUE', 'purple'),
+    ],
+    tooltip: 'Changes how a thing looks: colours, text size, roundness, border, see-through, layer or font.',
   },
   {
     type: 'zm_show', category: 'looks', shape: 'statement', fn: 'show',
@@ -244,13 +366,22 @@ export const CALL_BLOCKS: CallBlockSpec[] = [
     type: 'zm_get_value', category: 'values', shape: 'value', fn: 'getValue', output: null,
     message: 'what is typed in %1', args: [{ kind: 'text', name: 'TARGET', default: 'input' }],
     tooltip: 'The text typed into an input box. Numbers come back as numbers.',
-    types: ['app', 'website'],
+  },
+  {
+    type: 'zm_round', category: 'values', shape: 'value', fn: 'roundNumber', output: 'Number',
+    message: 'round %1', args: [num('VALUE', 2.5)],
+    tooltip: 'Rounds a number to the nearest whole number.',
   },
   // ---- Repeat ----
   {
     type: 'zm_forever', category: 'repeat', shape: 'statement-body', fn: 'forever',
     message: '🔁 forever', args: [],
     tooltip: 'Keeps doing the blocks inside about 60 times a second, in the background.',
+  },
+  {
+    type: 'zm_stop', category: 'repeat', shape: 'statement', fn: 'stop',
+    message: '⏹ stop the project', args: [],
+    tooltip: 'Stops everything, just like pressing Stop. Use it when the game is over.',
   },
   // ---- Time ----
   {

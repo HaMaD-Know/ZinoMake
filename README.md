@@ -13,6 +13,10 @@ tablet or phone. No account, no installs for users, no paid services.
 - **Real block coding** (Blockly): events, movement, looks, sound, numbers & text, decisions,
   repeat, variables (“Remember”), your own blocks (“My blocks”), and time. Blocks snap,
   nest, undo/redo, zoom and pan, and work with touch.
+- **Make things with blocks** — the *Make things* category adds a stage, emoji characters,
+  boxes, circles, pictures, words, titles, buttons, typing boxes and phone arrow buttons, and
+  *Looks* can resize, restyle and turn them. You never need to edit `index.html` or
+  `style.css`; blank projects start as blocks only.
 - **Add block without dragging** — the *Add block* dialog inserts a block next to the selected
   one (keyboard and touch friendly). *Delete block* removes the selected block.
 - **Real code** — Code view shows the JavaScript your blocks make. Simple edits in the code
@@ -111,8 +115,9 @@ iOS share sheet, so you can save files to the Files app or AirDrop them; “Open
 5. Curious about code? Open **Code**. Change `"Hello!"` to `"Hi!"`, go back to **Blocks**,
    and the block has changed too.
 
-Blocks find things on the page by their **id** in `index.html` (for example
-`<div id="player">`). On phones, game starters include on-screen arrow buttons
+Make things with the **Make things** blocks (for example *add character player looking like 🐱*)
+and then use the same name in other blocks (*move player by x 10*). Things written in
+`index.html` with an **id** (for example `<div id="player">`) can be used the same way. On phones, game starters include on-screen arrow buttons
 (`<button data-key="ArrowLeft">`) that work like keyboard keys.
 
 ## How saving works

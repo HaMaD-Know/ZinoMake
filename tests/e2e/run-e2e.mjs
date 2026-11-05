@@ -262,7 +262,7 @@ await step('assets: add a picture and show it with a block', async () => {
   await page.getByText(/can’t be used/).waitFor({ timeout: 3000 });
   await page.getByTestId('view-code').click();
   await page.locator('.cm-content').waitFor();
-  await setCode('onStart(async () => {\n  setImage("player", "cat.png");\n  setImage("player", "missing.png");\n});\n');
+  await setCode('onStart(async () => {\n  addBox("player", 10, 10, 40, 40, "blue");\n  setImage("player", "cat.png");\n  setImage("player", "missing.png");\n});\n');
   await page.getByTestId('play').click();
   await page.waitForTimeout(1200);
   const bgImg = await frame().locator('#player').evaluate((el) => el.style.backgroundImage);

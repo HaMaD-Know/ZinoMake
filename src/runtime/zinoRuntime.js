@@ -17,6 +17,9 @@
   var audioCtx = null;
   var assets = window.__ZM_ASSETS || {};
   var homes = new WeakMap();
+  var clickHandlers = [];
+  var removed = Object.create(null);
+  var mouse = { x: 0, y: 0 };
 
   function post(type, data) {
     try {
@@ -84,15 +87,15 @@
     var n = String(name);
     var el = document.getElementById(n);
     if (!el) { try { el = document.querySelector('[data-name="' + n.replace(/"/g, '') + '"]'); } catch (e) { el = null; } }
-    if (!el && !reportedMissing[n]) {
+    if (!el && !reportedMissing[n] && !removed[n]) {
       reportedMissing[n] = true;
-      post('error', { message: 'There’s nothing called “' + n + '” on the page. Check the name in your block (it must match an id in index.html).', line: null });
+      post('error', { message: 'There’s nothing called “' + n + '” on the page. Check the name in your block, or add it first with a “Make things” block.', line: null });
     }
     return el;
   }
   function home(el) {
     var h = homes.get(el);
-    if (!h) { h = { tx: 0, ty: 0, display: '' }; homes.set(el, h); }
+    if (!h) { h = { tx: 0, ty: 0, display: '', rot: 0 }; homes.set(el, h); }
     return h;
   }
   function applyPos(el, h) { el.style.translate = h.tx + 'px ' + h.ty + 'px'; }
@@ -101,7 +104,186 @@
 
   function checkRunning() { if (!running) throw new Error('ZM_STOPPED'); }
 
+  // ---------- making things (blocks in the “Make things” category) ----------
+  function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+  function px(v) { var s = text(v).trim(); return s !== '' && !isNaN(Number(s)) ? Number(s) + 'px' : s; }
+  function findQuiet(name) {
+    var n = String(name);
+    var el = document.getElementById(n);
+    if (!el) { try { el = document.querySelector('[data-name="' + n.replace(/"/g, '') + '"]'); } catch (e) { el = null; } }
+    return el;
+  }
+  function pageBox() {
+    return document.getElementById('page') || document.querySelector('main') || document.body;
+  }
+  function getStage() {
+    return document.getElementById('stage') || document.querySelector('.stage');
+  }
+  function makeStage(w, h, color) {
+    var st = getStage();
+    if (!st) {
+      st = document.createElement('div');
+      st.id = 'stage';
+      st.className = 'stage';
+      st.style.cssText = 'position:relative;overflow:hidden;border-radius:14px;border:3px solid #1d2433;background:#bfe3ff;margin:0 auto;max-width:100%;';
+      var box = pageBox();
+      box.insertBefore(st, box.firstChild);
+    }
+    if (window.getComputedStyle(st).position === 'static') st.style.position = 'relative';
+    if (w !== undefined) st.style.width = num(w, 360) + 'px';
+    if (h !== undefined) st.style.height = num(h, 280) + 'px';
+    if (color !== undefined && text(color)) st.style.background = text(color);
+    return st;
+  }
+  function stage() { return getStage() || makeStage(360, 280); }
+  /** Create (or re-create) a named thing. Adding a name again replaces the old one. */
+  function make(name, tag, parent) {
+    var n = String(name).trim() || 'thing';
+    var old = findQuiet(n);
+    if (old) old.remove();
+    delete removed[n];
+    delete reportedMissing[n];
+    var el = document.createElement(tag);
+    el.id = n;
+    el.setAttribute('data-name', n);
+    parent.appendChild(el);
+    return el;
+  }
+  function onStage(name, tag, x, y, cls) {
+    var el = make(name, tag, stage());
+    el.className = cls;
+    el.style.position = 'absolute';
+    el.style.left = num(x, 0) + 'px';
+    el.style.top = num(y, 0) + 'px';
+    el.style.boxSizing = 'border-box';
+    return el;
+  }
+  function bindKeyButton(el) {
+    if (el.__zmKey) return;
+    el.__zmKey = true;
+    var k = el.getAttribute('data-key');
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } keyDown(k); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { el.addEventListener(t, function () { keyUp(k); }); });
+  }
+  var cursorStyle = null;
+  function pointerCursor(name) {
+    try {
+      if (!cursorStyle) { cursorStyle = document.createElement('style'); document.head.appendChild(cursorStyle); }
+      var n = String(name);
+      var sel = (window.CSS && CSS.escape) ? '#' + CSS.escape(n) : '[id="' + n.replace(/"/g, '') + '"]';
+      cursorStyle.textContent += sel + ',[data-name="' + n.replace(/"/g, '') + '"]{cursor:pointer}\n';
+    } catch (e) { /* cosmetic only */ }
+  }
+
   var api = {
+    setStage: function (w, h, color) { checkRunning(); makeStage(w, h, color); },
+    addCharacter: function (name, look, x, y, size) {
+      checkRunning();
+      var el = onStage(name, 'div', x, y, 'zm-thing zm-character');
+      var s = num(size, 48);
+      el.textContent = text(look);
+      el.style.fontSize = s + 'px';
+      el.style.lineHeight = '1';
+      el.style.whiteSpace = 'nowrap';
+      el.style.userSelect = 'none';
+    },
+    addBox: function (name, x, y, w, h, color) {
+      checkRunning();
+      var el = onStage(name, 'div', x, y, 'sprite zm-thing');
+      el.style.width = num(w, 60) + 'px';
+      el.style.height = num(h, 40) + 'px';
+      el.style.backgroundColor = text(color);
+      el.style.borderRadius = '8px';
+    },
+    addCircle: function (name, x, y, size, color) {
+      checkRunning();
+      var el = onStage(name, 'div', x, y, 'sprite zm-thing');
+      var s = num(size, 40);
+      el.style.width = s + 'px';
+      el.style.height = s + 'px';
+      el.style.backgroundColor = text(color);
+      el.style.borderRadius = '50%';
+    },
+    addPicture: function (name, assetName, x, y, size) {
+      checkRunning();
+      var url = assets[String(assetName)];
+      var el = onStage(name, url ? 'img' : 'div', x, y, 'zm-thing zm-picture');
+      el.style.width = num(size, 80) + 'px';
+      if (url) { el.src = url; el.alt = String(name); el.draggable = false; }
+      else {
+        el.style.height = num(size, 80) + 'px';
+        el.style.background = '#e9ecef';
+        el.style.border = '2px dashed #868e96';
+        post('error', { message: 'The picture “' + assetName + '” could not be found. Add it in Pictures & sounds, or choose another picture.', line: null });
+      }
+    },
+    addLabel: function (name, words, x, y, size) {
+      checkRunning();
+      var el = onStage(name, 'div', x, y, 'zm-thing zm-label');
+      el.textContent = text(words);
+      el.style.fontSize = num(size, 20) + 'px';
+      el.style.fontWeight = '700';
+      el.style.whiteSpace = 'nowrap';
+    },
+    addTitle: function (name, words) { checkRunning(); make(name, 'h1', pageBox()).textContent = text(words); },
+    addParagraph: function (name, words) { checkRunning(); make(name, 'p', pageBox()).textContent = text(words); },
+    addButton: function (name, words) { checkRunning(); var el = make(name, 'button', pageBox()); el.type = 'button'; el.textContent = text(words); },
+    addInput: function (name, hint) { checkRunning(); var el = make(name, 'input', pageBox()); el.type = 'text'; el.placeholder = text(hint); },
+    addArrowButtons: function () {
+      checkRunning();
+      var pad = make('arrow-buttons', 'div', pageBox());
+      pad.className = 'pad';
+      pad.style.cssText = 'display:flex;gap:8px;justify-content:center;margin:10px auto;';
+      [['ArrowLeft', '◀', 'Left'], ['ArrowUp', '▲', 'Up'], ['ArrowDown', '▼', 'Down'], ['ArrowRight', '▶', 'Right']].forEach(function (b) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('data-key', b[0]);
+        btn.setAttribute('aria-label', b[2]);
+        btn.textContent = b[1];
+        btn.style.cssText = 'font-size:22px;width:56px;height:48px;border-radius:12px;border:2px solid #1d2433;background:#fff;color:#1d2433;';
+        pad.appendChild(btn);
+        bindKeyButton(btn);
+      });
+    },
+    remove: function (target) {
+      checkRunning();
+      var n = String(target);
+      var el = findQuiet(n);
+      removed[n] = true;
+      if (el) el.remove();
+    },
+    turn: function (target, degrees) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var h = home(el); h.rot = (h.rot + num(degrees, 0)) % 360; el.style.rotate = h.rot + 'deg';
+    },
+    mouseX: function () { var st = getStage(); return Math.round(st ? mouse.x - st.getBoundingClientRect().left - st.clientLeft : mouse.x); },
+    mouseY: function () { var st = getStage(); return Math.round(st ? mouse.y - st.getBoundingClientRect().top - st.clientTop : mouse.y); },
+    setSize: function (target, w, h) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      if (el.classList.contains('zm-character') || el.classList.contains('zm-label')) { el.style.fontSize = num(h, 48) + 'px'; return; }
+      el.style.width = num(w, 60) + 'px';
+      if (el.tagName === 'IMG') el.style.height = 'auto'; else el.style.height = num(h, 60) + 'px';
+    },
+    setStyle: function (target, style, value) {
+      checkRunning();
+      var el = find(target); if (!el) return;
+      var v = text(value);
+      switch (String(style)) {
+        case 'fill': el.style.backgroundColor = v; break;
+        case 'textColor': el.style.color = v; break;
+        case 'textSize': el.style.fontSize = px(v); break;
+        case 'roundness': el.style.borderRadius = px(v); break;
+        case 'border': el.style.border = v ? '3px solid ' + v : 'none'; break;
+        case 'seeThrough': el.style.opacity = String(Math.max(0, Math.min(100, 100 - num(value, 0))) / 100); break;
+        case 'layer': el.style.zIndex = String(Math.round(num(value, 0))); if (window.getComputedStyle(el).position === 'static') el.style.position = 'relative'; break;
+        case 'font': el.style.fontFamily = v; break;
+        default: break;
+      }
+    },
+    roundNumber: function (v) { return Math.round(num(v, 0)); },
     say: function (message) {
       checkRunning();
       var t = text(message);
@@ -217,9 +399,9 @@
     isKeyDown: function (key) { return !!keysDown[String(key)]; },
     onStart: function (fn) { startHandlers.push(fn); },
     onClick: function (target, fn) {
-      var el = find(target); if (!el) return;
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', function () { if (running) run(fn); });
+      // Delegated, so it also works for things made later by “Make things” blocks.
+      clickHandlers.push({ name: String(target), fn: fn });
+      pointerCursor(target);
     },
     onKey: function (key, fn) { keyHandlers.push({ key: String(key), fn: fn }); },
     every: function (seconds, fn) {
@@ -270,12 +452,21 @@
 
   // On-screen buttons: <button data-key="ArrowLeft"> behave like keyboard keys (for phones and tablets).
   function bindTouchKeys() {
-    var els = document.querySelectorAll('[data-key]');
-    Array.prototype.forEach.call(els, function (el) {
-      var k = el.getAttribute('data-key');
-      el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } keyDown(k); });
-      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { el.addEventListener(t, function () { keyUp(k); }); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-key]'), bindKeyButton);
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!running) return;
+    clickHandlers.forEach(function (h) {
+      var el = findQuiet(h.name);
+      if (el && (el === e.target || el.contains(e.target))) run(h.fn);
     });
+  });
+  ['pointermove', 'pointerdown'].forEach(function (t) {
+    document.addEventListener(t, function (e) { mouse.x = e.clientX; mouse.y = e.clientY; }, true);
+  });
+  function checkClickTargets() {
+    clickHandlers.forEach(function (h) { if (!findQuiet(h.name)) find(h.name); });
   }
 
   function stopAll() {
@@ -302,6 +493,8 @@
       bindTouchKeys();
       post('started', {});
       startHandlers.forEach(function (fn) { run(fn); });
+      // Things can be made by blocks after Play, so only warn about unknown click names a moment later.
+      timers.push(setTimeout(function () { if (running) checkClickTargets(); }, 1500));
     }
   };
   for (var name in api) window[name] = api[name];

@@ -168,12 +168,19 @@ function blockItem(spec: CallBlockSpec): ToolboxItem {
 }
 
 function callsIn(cat: CategoryId, type: ProjectType): ToolboxItem[] {
-  return CALL_BLOCKS.filter((b) => b.category === cat && (!b.types || b.types.includes(type))).map(blockItem);
+  const items: ToolboxItem[] = [];
+  for (const b of CALL_BLOCKS) {
+    if (b.category !== cat || (b.types && !b.types.includes(type))) continue;
+    if (b.group) items.push({ kind: 'label', text: b.group });
+    items.push(blockItem(b));
+  }
+  return items;
 }
 
 export function buildToolbox(type: ProjectType): Blockly.utils.toolbox.ToolboxDefinition {
   const cats: Record<CategoryId, ToolboxItem[]> = {
     start: [...callsIn('start', type), { kind: 'block', type: 'zm_note' }],
+    objects: callsIn('objects', type),
     events: callsIn('events', type),
     motion: callsIn('motion', type),
     looks: callsIn('looks', type),

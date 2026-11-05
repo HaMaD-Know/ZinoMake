@@ -22,7 +22,8 @@ describe('starter templates', () => {
 
   it.each(all.map((t) => [t.id, t] as const))('%s references only element ids that exist in its HTML', (_id, t) => {
     const ids = new Set([...t.html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
-    const used = [...t.js.matchAll(/(?:onClick|move|moveTo|getX|getY|setText|setColor|show|hide|getValue)\("([^"]+)"/g)].map((m) => m[1]);
+    for (const [, made] of t.js.matchAll(/add(?:Character|Box|Circle|Picture|Label|Title|Paragraph|Button|Input)\("([^"]+)"/g)) ids.add(made);
+    const used = [...t.js.matchAll(/(?:onClick|move|moveTo|getX|getY|setText|setColor|setSize|setStyle|turn|remove|show|hide|getValue)\("([^"]+)"/g)].map((m) => m[1]);
     for (const [, a, b] of t.js.matchAll(/touching\("([^"]+)", "([^"]+)"\)/g)) used.push(a, b);
     for (const u of used) expect(ids, `${t.id} uses #${u}`).toContain(u);
   });

@@ -1372,7 +1372,10 @@ onClick("next", async () => {
   },
 ];
 
-/** Blank starter per type: a minimal page and a single start block. */
+/**
+ * Blank starter per type: an empty page. Everything on it is made by blocks
+ * (“Make things” category), so a new project never needs Code view.
+ */
 export function blankTemplate(type: ProjectType): Template {
   const stage = type === 'game' || type === 'animation';
   return {
@@ -1382,15 +1385,14 @@ export function blankTemplate(type: ProjectType): Template {
     description: 'Start from an empty project.',
     emoji: '✨',
     colors: ['#adb5bd', '#f1f3f5'],
-    nextIdeas: ['Drag a “show message” block into “when Play is pressed”, then press Play.'],
+    nextIdeas: stage
+      ? ['Open “Make things” and add a box, a circle or another character.', 'Use “when right arrow key is pressed” and “move player by x 10” to make it move.', 'Add “arrow buttons for phones” so it works on a tablet too.']
+      : ['Open “Make things” and add a typing box, more words or another button.', 'Use “set text of title to …” inside “when button is clicked”.', 'Use “🎨 set fill colour of …” to change colours.'],
     html: stage
       ? `<!doctype html>
 <html>
 <head><title>My project</title></head>
 <body>
-  <div class="stage" id="stage">
-    <div class="sprite" id="player"></div>
-  </div>
 </body>
 </html>
 `
@@ -1398,24 +1400,24 @@ export function blankTemplate(type: ProjectType): Template {
 <html>
 <head><title>My project</title></head>
 <body>
-  <main class="card">
-    <h1 id="title">Hello!</h1>
-    <button id="button">Click me</button>
-  </main>
+  <main class="card" id="page"></main>
 </body>
 </html>
 `,
-    css: stage
-      ? GAME_BASE_CSS + `#player {
-  left: 160px;
-  top: 120px;
-  width: 40px;
-  height: 40px;
-  background: #4c6ef5;
-}
+    css: stage ? GAME_BASE_CSS : APP_BASE_CSS,
+    js: stage
+      ? `onStart(async () => {
+  setStage(360, 280, "skyblue");
+  addCharacter("player", "🐱", 160, 110, 48);
+  say("Hello!");
+});
 `
-      : APP_BASE_CSS,
-    js: `onStart(async () => {
+      : `onStart(async () => {
+  addTitle("title", "Hello!");
+  addButton("button", "Click me");
+});
+
+onClick("button", async () => {
   say("Hello!");
 });
 `,

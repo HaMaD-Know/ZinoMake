@@ -17,7 +17,7 @@ import { isDarkTheme, readPref, toast, writePref } from '../app/ui-store';
 import { getFileContent, type Project } from '../model/project';
 import { findTemplate } from '../templates/templates';
 import { createProjectFromTemplate } from '../model/createProject';
-import { elementIdsFromHtml } from '../programming/assistant/helper';
+import { elementIdsFromHtml, madeNamesFromCode } from '../programming/assistant/helper';
 import { exportProject, exportSource, exportWebPage } from '../app/projectService';
 
 const CodeEditor = lazy(() => import('../features/code-editor/CodeEditor'));
@@ -133,7 +133,10 @@ export default function EditorPage({ projectId }: { projectId: string }) {
 
   const template = findTemplate(project.templateId);
   const isBlocksFile = activeFile === project.blocksFile;
-  const elementIds = elementIdsFromHtml(project.files.filter((f) => f.path.endsWith('.html')).map((f) => f.content).join('\n'));
+  const elementIds = [...new Set([
+    ...madeNamesFromCode(getFileContent(project, project.blocksFile)),
+    ...elementIdsFromHtml(project.files.filter((f) => f.path.endsWith('.html')).map((f) => f.content).join('\n')),
+  ])];
 
   const rename = async () => {
     const name = await promptDialog({ title: 'Rename project', label: 'Project name', initial: project.name });
@@ -278,7 +281,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
               {emptyWorkspace && !ed.syntaxError && (
                 <div className="empty-hint">
                   <strong>Start here 👇</strong>
-                  <p>Open <em>Start</em> and drag “when Play is pressed” here. Then put a “show message” block inside it.</p>
+                  <p>Open <em>Start</em> and drag “when Play is pressed” here. Then open <em>Make things</em> and put an “add character” or “add button” block inside it.</p>
                 </div>
               )}
               {ed.syntaxError && (
@@ -321,7 +324,7 @@ export default function EditorPage({ projectId }: { projectId: string }) {
                   <div className="banner info" role="status"><span>🧩 This file is made from your blocks. Simple changes here update the blocks too.</span></div>
                 )
               ) : (
-                <div className="banner info"><span>{activeFile.endsWith('.html') ? 'This is the page. Give things an id (like id="player") to use them in blocks.' : activeFile.endsWith('.css') ? 'This file controls colours, sizes and positions.' : 'This file isn’t linked to blocks.'}</span></div>
+                <div className="banner info"><span>{activeFile.endsWith('.html') ? 'This is the page. You don’t need to edit it: “Make things” blocks can add characters, shapes, text and buttons. (Things with an id here, like id="player", can also be used in blocks.)' : activeFile.endsWith('.css') ? 'This file controls colours, sizes and positions.' : 'This file isn’t linked to blocks.'}</span></div>
               )}
               <Suspense fallback={<div className="preview-empty" role="status">Loading the code editor…</div>}>
                 <CodeEditor
